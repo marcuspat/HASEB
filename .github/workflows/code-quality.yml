@@ -1,0 +1,439 @@
+name: 🔍 Code Quality Automation
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+  schedule:
+    # Run daily at 2 AM UTC
+    - cron: '0 2 * * *'
+
+env:
+  NODE_VERSION: '20'
+
+jobs:
+  # Comprehensive Code Analysis
+  code-analysis:
+    name: 📊 Code Analysis
+    runs-on: ubuntu-latest
+    outputs:
+      quality-score: ${{ steps.quality.outputs.score }}
+      coverage-percentage: ${{ steps.coverage.outputs.percentage }}
+
+    steps:
+      - name: 📥 Checkout Code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: 🟢 Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: 📦 Install Dependencies
+        run: npm ci
+
+      - name: 🔍 ESLint Analysis
+        id: eslint
+        run: |
+          npm run lint -- --format=json --output-file=eslint-report.json
+          npm run lint -- --format=checkstyle --output-file=eslint-checkstyle.xml
+
+          # Count issues
+          ERRORS=$(cat eslint-report.json | jq '.[].messages | map(select(.severity == 2)) | length')
+          WARNINGS=$(cat eslint-report.json | jq '.[].messages | map(select(.severity == 1)) | length')
+
+          echo "errors=$ERRORS" >> $GITHUB_OUTPUT
+          echo "warnings=$WARNINGS" >> $GITHUB_OUTPUT
+          echo "total=$((ERRORS + WARNINGS))" >> $GITHUB_OUTPUT
+        continue-on-error: true
+
+      - name: 🎨 Prettier Check
+        id: prettier
+        run: |
+          npx prettier --check "src/**/*.{ts,tsx,js,jsx}" --check "tests/**/*.{ts,tsx,js,jsx}" || true
+          npx prettier --list-different "src/**/*.{ts,tsx,js,jsx}" --check "tests/**/*.{ts,tsx,js,jsx}" > prettier-issues.txt || true
+
+          PRETTIER_ISSUES=$(cat prettier-issues.txt | wc -l || echo 0)
+          echo "issues=$PRETTIER_ISSUES" >> $GITHUB_OUTPUT
+        continue-on-error: true
+
+      - name: 🏗️ TypeScript Type Check
+        id: typescript
+        run: |
+          npm run typecheck 2> typescript-errors.txt || true
+          TS_ERRORS=$(grep -c "error TS" typescript-errors.txt || echo 0)
+          echo "errors=$TS_ERRORS" >> $GITHUB_OUTPUT
+        continue-on-error: true
+
+      - name: 📊 Test Coverage Analysis
+        id: coverage
+        run: |
+          npm run test:coverage
+
+          # Extract coverage metrics
+          LINES=$(cat coverage/coverage-summary.json | jq -r '.total.lines.pct // 0')
+          FUNCTIONS=$(cat coverage/coverage-summary.json | jq -r '.total.functions.pct // 0')
+          BRANCHES=$(cat coverage/coverage-summary.json | jq -r '.total.branches.pct // 0')
+          STATEMENTS=$(cat coverage/coverage-summary.json | jq -r '.total.statements.pct // 0')
+
+          echo "lines=$LINES" >> $GITHUB_OUTPUT
+          echo "functions=$FUNCTIONS" >> $GITHUB_OUTPUT
+          echo "branches=$BRANCHES" >> $GITHUB_OUTPUT
+          echo "statements=$STATEMENTS" >> $GITHUB_OUTPUT
+          echo "percentage=$LINES" >> $GITHUB_OUTPUT
+        continue-on-error: true
+
+      - name: 📈 Calculate Quality Score
+        id: quality
+        run: |
+          # Calculate quality score (0-100)
+          ESLINT_SCORE=$((100 - (${{ steps.eslint.outputs.total }} * 2)))
+          PRETTIER_SCORE=$((100 - ${{ steps.prettier.outputs.issues }}))
+          TS_SCORE=$((100 - ${{ steps.typescript.outputs.errors }} * 3))
+          COVERAGE_SCORE=${{ steps.coverage.outputs.lines }}
+
+          # Normalize scores
+          ESLINT_SCORE=$((ESLINT_SCORE < 0 ? 0 : ESLINT_SCORE))
+          PRETTIER_SCORE=$((PRETTIER_SCORE < 0 ? 0 : PRETTIER_SCORE))
+          TS_SCORE=$((TS_SCORE < 0 ? 0 : TS_SCORE))
+
+          # Calculate weighted average
+          QUALITY_SCORE=$(( (ESLINT_SCORE * 30 + PRETTIER_SCORE * 20 + TS_SCORE * 30 + COVERAGE_SCORE * 20) / 100 ))
+          QUALITY_SCORE=$((QUALITY_SCORE < 0 ? 0 : QUALITY_SCORE))
+
+          echo "score=$QUALITY_SCORE" >> $GITHUB_OUTPUT
+          echo "## 📊 Code Quality Score: $QUALITY_SCORE/100" >> $GITHUB_STEP_SUMMARY
+          echo "| Metric | Score | Weight |" >> $GITHUB_STEP_SUMMARY
+          echo "|--------|-------|--------|" >> $GITHUB_STEP_SUMMARY
+          echo "| ESLint | $ESLINT_SCORE/100 | 30% |" >> $GITHUB_STEP_SUMMARY
+          echo "| Prettier | $PRETTIER_SCORE/100 | 20% |" >> $GITHUB_STEP_SUMMARY
+          echo "| TypeScript | $TS_SCORE/100 | 30% |" >> $GITHUB_STEP_SUMMARY
+          echo "| Coverage | $COVERAGE_SCORE/100 | 20% |" >> $GITHUB_STEP_SUMMARY
+
+      - name: 🏆 Quality Badge Check
+        run: |
+          QUALITY_SCORE=${{ steps.quality.outputs.score }}
+          if [ $QUALITY_SCORE -ge 90 ]; then
+            echo "🏆 Excellent code quality! Score: $QUALITY_SCORE/100"
+            echo "quality_badge=excellent" >> $GITHUB_ENV
+          elif [ $QUALITY_SCORE -ge 80 ]; then
+            echo "✅ Good code quality! Score: $QUALITY_SCORE/100"
+            echo "quality_badge=good" >> $GITHUB_ENV
+          elif [ $QUALITY_SCORE -ge 70 ]; then
+            echo "⚠️ Acceptable code quality. Score: $QUALITY_SCORE/100"
+            echo "quality_badge=acceptable" >> $GITHUB_ENV
+          else
+            echo "❌ Code quality needs improvement. Score: $QUALITY_SCORE/100"
+            echo "quality_badge=needs_improvement" >> $GITHUB_ENV
+            exit 1
+          fi
+
+      - name: 📤 Upload Analysis Reports
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: code-quality-reports
+          path: |
+            eslint-report.json
+            eslint-checkstyle.xml
+            prettier-issues.txt
+            typescript-errors.txt
+            coverage/
+          retention-days: 30
+
+  # Code Complexity Analysis
+  complexity-analysis:
+    name: 🧮 Complexity Analysis
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 📥 Checkout Code
+        uses: actions/checkout@v4
+
+      - name: 🟢 Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: 📦 Install Dependencies
+        run: npm ci
+
+      - name: 📦 Install Complexity Tools
+        run: npm install -g complexity-report
+
+      - name: 🧮 Run Complexity Analysis
+        run: |
+          complexity-report -o complexity-report.json -f json src/
+          complexity-report -o complexity-report.html -f html src/
+
+      - name: 📊 Complexity Summary
+        run: |
+          echo "## 🧮 Code Complexity Analysis" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          if [ -f complexity-report.json ]; then
+            echo "### Overall Metrics" >> $GITHUB_STEP_SUMMARY
+            cat complexity-report.json | jq -r '
+              "| Metric | Value |",
+              "|--------|-------|",
+              "| Total Files | \(.reports | length) |",
+              "| Average Complexity | \(.averageComplexity // "N/A") |",
+              "| Max Complexity | \(.maxComplexity // "N/A") |",
+              "| Total Functions | \(.totalFunctions // "N/A") |"
+            ' >> $GITHUB_STEP_SUMMARY
+
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "### Files with High Complexity (>10)" >> $GITHUB_STEP_SUMMARY
+            cat complexity-report.json | jq -r '
+              .reports[] |
+              select(.maintainabilityIndex < 70 or .aggregateComplexity > 10) |
+              "| \(.path) | \(.aggregateComplexity) | \(.maintainabilityIndex) |"
+            ' | head -10 >> $GITHUB_STEP_SUMMARY
+          fi
+
+      - name: 📤 Upload Complexity Report
+        uses: actions/upload-artifact@v4
+        with:
+          name: complexity-report
+          path: |
+            complexity-report.json
+            complexity-report.html
+          retention-days: 30
+
+  # Dependency Analysis
+  dependency-analysis:
+    name: 📦 Dependency Analysis
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 📥 Checkout Code
+        uses: actions/checkout@v4
+
+      - name: 🟢 Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: 📦 Install Dependencies
+        run: npm ci
+
+      - name: 📊 Dependency Security Audit
+        id: audit
+        run: |
+          npm audit --json > audit-report.json || true
+
+          # Extract vulnerabilities
+          VULNERABILITIES=$(cat audit-report.json | jq -r '.metadata.vulnerabilities.total // 0')
+          HIGH_VULNS=$(cat audit-report.json | jq -r '.metadata.vulnerabilities.high // 0')
+          MODERATE_VULNS=$(cat audit-report.json | jq -r '.metadata.vulnerabilities.moderate // 0')
+          LOW_VULNS=$(cat audit-report.json | jq -r '.metadata.vulnerabilities.low // 0')
+
+          echo "total=$VULNERABILITIES" >> $GITHUB_OUTPUT
+          echo "high=$HIGH_VULNS" >> $GITHUB_OUTPUT
+          echo "moderate=$MODERATE_VULNS" >> $GITHUB_OUTPUT
+          echo "low=$LOW_VULNS" >> $GITHUB_OUTPUT
+        continue-on-error: true
+
+      - name: 📦 Outdated Dependencies Check
+        id: outdated
+        run: |
+          npm outdated --json > outdated-report.json || true
+
+          # Count outdated packages
+          OUTDATED=$(cat outdated-report.json | jq 'keys | length // 0')
+          echo "count=$OUTDATED" >> $GITHUB_OUTPUT
+        continue-on-error: true
+
+      - name: 📦 Bundle Size Analysis
+        run: |
+          npm install -g bundlesize
+
+          # Create bundlesize config if it doesn't exist
+          cat > .bundlesize.json << EOF
+          [
+            {
+              "path": "./dist/**/*.{js,css}",
+              "maxSize": "1MB"
+            },
+            {
+              "path": "./dist/server.js",
+              "maxSize": "500KB"
+            }
+          ]
+          EOF
+
+          bundlesize || true
+
+      - name: 📊 Dependency Summary
+        run: |
+          echo "## 📦 Dependency Analysis" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Security Vulnerabilities" >> $GITHUB_STEP_SUMMARY
+          echo "| Severity | Count |" >> $GITHUB_STEP_SUMMARY
+          echo "|----------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| High | ${{ steps.audit.outputs.high }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Moderate | ${{ steps.audit.outputs.moderate }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Low | ${{ steps.audit.outputs.low }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Total | ${{ steps.audit.outputs.total }} |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Outdated Packages" >> $GITHUB_STEP_SUMMARY
+          echo "- Total outdated packages: ${{ steps.outdated.outputs.count }}" >> $GITHUB_STEP_SUMMARY
+
+      - name: 📤 Upload Dependency Reports
+        uses: actions/upload-artifact@v4
+        with:
+          name: dependency-reports
+          path: |
+            audit-report.json
+            outdated-report.json
+          retention-days: 30
+
+  # Code Style Consistency
+  style-check:
+    name: 🎨 Style Consistency
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 📥 Checkout Code
+        uses: actions/checkout@v4
+
+      - name: 🟢 Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: 📦 Install Dependencies
+        run: npm ci
+
+      - name: 🎨 Prettier Format Check
+        run: |
+          npx prettier --check "src/**/*.{ts,tsx,js,jsx,json,md}" --check "tests/**/*.{ts,tsx,js,jsx,json,md}"
+
+      - name: 🏷️ Conventional Commits Check
+        uses: wagoid/commitlint-github-action@v5
+        if: github.event_name == 'pull_request'
+        with:
+          configFile: .commitlintrc.json
+
+      - name: 📝 README Check
+        run: |
+          if [ ! -f README.md ]; then
+            echo "❌ README.md is missing"
+            exit 1
+          fi
+
+          # Check for required sections
+          REQUIRED_SECTIONS=("## Installation" "## Usage" "## Contributing" "## License")
+          for section in "${REQUIRED_SECTIONS[@]}"; do
+            if ! grep -q "$section" README.md; then
+              echo "⚠️ Missing section: $section"
+            fi
+          done
+
+  # Performance Metrics
+  performance-analysis:
+    name: ⚡ Performance Analysis
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 📥 Checkout Code
+        uses: actions/checkout@v4
+
+      - name: 🟢 Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: 📦 Install Dependencies
+        run: npm ci
+
+      - name: ⚡ Lighthouse CI
+        run: |
+          npm install -g @lhci/cli@0.12.x
+
+          # Build frontend
+          npm run build:frontend
+
+          # Create lighthouse config
+          cat > lighthouserc.js << EOF
+          module.exports = {
+            ci: {
+              collect: {
+                url: ['http://localhost:3000'],
+                numberOfRuns: 3
+              },
+              assert: {
+                assertions: {
+                  'categories:performance': ['warn', { minScore: 0.8 }],
+                  'categories:accessibility': ['error', { minScore: 0.9 }],
+                  'categories:best-practices': ['warn', { minScore: 0.8 }],
+                  'categories:seo': ['warn', { minScore: 0.8 }]
+                }
+              },
+              upload: {
+                target: 'temporary-public-storage'
+              }
+            }
+          };
+          EOF
+
+          # Start server and run Lighthouse
+          npm run dev &
+          sleep 10
+          lhci autorun || true
+        continue-on-error: true
+
+      - name: 📊 Performance Summary
+        run: |
+          echo "## ⚡ Performance Analysis" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Performance metrics collected via Lighthouse CI" >> $GITHUB_STEP_SUMMARY
+          echo "- Performance score checked (minimum 80%)" >> $GITHUB_STEP_SUMMARY
+          echo "- Accessibility score checked (minimum 90%)" >> $GITHUB_STEP_SUMMARY
+          echo "- Best practices score checked (minimum 80%)" >> $GITHUB_STEP_SUMMARY
+          echo "- SEO score checked (minimum 80%)" >> $GITHUB_STEP_SUMMARY
+
+  # Quality Gates
+  quality-gates:
+    name: 🚪 Quality Gates
+    runs-on: ubuntu-latest
+    needs: [code-analysis, complexity-analysis, dependency-analysis]
+    if: github.event_name == 'pull_request'
+
+    steps:
+      - name: 🚪 Check Quality Gates
+        run: |
+          QUALITY_SCORE=${{ needs.code-analysis.outputs.quality-score }}
+          COVERAGE=${{ needs.code-analysis.outputs.coverage-percentage }}
+
+          echo "## 🚪 Quality Gates Status" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          # Quality Score Gate
+          if [ $QUALITY_SCORE -ge 80 ]; then
+            echo "✅ Quality Score Gate: PASSED ($QUALITY_SCORE/100)" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ Quality Score Gate: FAILED ($QUALITY_SCORE/100)" >> $GITHUB_STEP_SUMMARY
+            echo "Quality score must be at least 80/100" >> $GITHUB_STEP_SUMMARY
+            exit 1
+          fi
+
+          # Coverage Gate
+          if (( $(echo "$COVERAGE >= 80" | bc -l) )); then
+            echo "✅ Coverage Gate: PASSED ($COVERAGE%)" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ Coverage Gate: FAILED ($COVERAGE%)" >> $GITHUB_STEP_SUMMARY
+            echo "Coverage must be at least 80%" >> $GITHUB_STEP_SUMMARY
+            exit 1
+          fi
+
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "🎉 All quality gates passed! Ready for merge." >> $GITHUB_STEP_SUMMARY

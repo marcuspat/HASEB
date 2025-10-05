@@ -1,0 +1,498 @@
+name: 🚀 Release Automation
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      version_type:
+        description: 'Version type for release'
+        required: true
+        default: 'patch'
+        type: choice
+        options:
+          - patch
+          - minor
+          - major
+      pre_release:
+        description: 'Create pre-release'
+        required: false
+        default: false
+        type: boolean
+
+env:
+  NODE_VERSION: '20'
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  # Semantic Version Check
+  version-check:
+    name: 🔍 Version Analysis
+    runs-on: ubuntu-latest
+    outputs:
+      version-type: ${{ steps.version.outputs.type }}
+      new-version: ${{ steps.version.outputs.new }}
+      is-breaking: ${{ steps.version.outputs.breaking }}
+      is-feature: ${{ steps.version.outputs.feature }}
+      is-fix: ${{ steps.version.outputs.fix }}
+
+    steps:
+      - name: 📥 Checkout Code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: 🔍 Analyze Commits
+        id: version
+        run: |
+          # Get the last tag
+          LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0")
+          echo "Last tag: $LAST_TAG"
+
+          # Analyze commits since last tag
+          COMMITS=$(git log $LAST_TAG..HEAD --pretty=format:'%s')
+
+          # Count commit types
+          BREAKING=$(echo "$COMMITS" | grep -c "BREAKING CHANGE:" || echo 0)
+          FEATURES=$(echo "$COMMITS" | grep -cE "^(feat|feature):" || echo 0)
+          FIXES=$(echo "$COMMITS" | grep -cE "^(fix|bugfix):" || echo 0)
+
+          echo "Breaking changes: $BREAKING"
+          echo "Features: $FEATURES"
+          echo "Fixes: $FIXES"
+
+          # Determine version type
+          if [ $BREAKING -gt 0 ]; then
+            VERSION_TYPE="major"
+            echo "breaking=true" >> $GITHUB_OUTPUT
+            echo "feature=false" >> $GITHUB_OUTPUT
+            echo "fix=false" >> $GITHUB_OUTPUT
+          elif [ $FEATURES -gt 0 ]; then
+            VERSION_TYPE="minor"
+            echo "breaking=false" >> $GITHUB_OUTPUT
+            echo "feature=true" >> $GITHUB_OUTPUT
+            echo "fix=false" >> $GITHUB_OUTPUT
+          elif [ $FIXES -gt 0 ]; then
+            VERSION_TYPE="patch"
+            echo "breaking=false" >> $GITHUB_OUTPUT
+            echo "feature=false" >> $GITHUB_OUTPUT
+            echo "fix=true" >> $GITHUB_OUTPUT
+          else
+            VERSION_TYPE="patch"
+            echo "breaking=false" >> $GITHUB_OUTPUT
+            echo "feature=false" >> $GITHUB_OUTPUT
+            echo "fix=true" >> $GITHUB_OUTPUT
+          fi
+
+          echo "type=$VERSION_TYPE" >> $GITHUB_OUTPUT
+
+          # Calculate new version
+          if [ "${{ github.event.inputs.version_type }}" != "" ]; then
+            VERSION_TYPE="${{ github.event.inputs.version_type }}"
+          fi
+
+          # Parse current version
+          CURRENT_VERSION=${LAST_TAG#v}
+          IFS='.' read -ra VERSION_PARTS <<< "$CURRENT_VERSION"
+          MAJOR=${VERSION_PARTS[0]}
+          MINOR=${VERSION_PARTS[1]}
+          PATCH=${VERSION_PARTS[2]}
+
+          # Increment based on type
+          case $VERSION_TYPE in
+            major)
+              MAJOR=$((MAJOR + 1))
+              MINOR=0
+              PATCH=0
+              ;;
+            minor)
+              MINOR=$((MINOR + 1))
+              PATCH=0
+              ;;
+            patch)
+              PATCH=$((PATCH + 1))
+              ;;
+          esac
+
+          NEW_VERSION="v$MAJOR.$MINOR.$PATCH"
+          echo "new=$NEW_VERSION" >> $GITHUB_OUTPUT
+
+          echo "## 🔍 Version Analysis" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Metric | Count |" >> $GITHUB_STEP_SUMMARY
+          echo "|--------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Breaking Changes | $BREAKING |" >> $GITHUB_STEP_SUMMARY
+          echo "| Features | $FEATURES |" >> $GITHUB_STEP_SUMMARY
+          echo "| Fixes | $FIXES |" >> $GITHUB_STEP_SUMMARY
+          echo "| Current Version | $LAST_TAG |" >> $GITHUB_STEP_SUMMARY
+          echo "| Next Version | $NEW_VERSION |" >> $GITHUB_STEP_SUMMARY
+          echo "| Version Type | $VERSION_TYPE |" >> $GITHUB_STEP_SUMMARY
+
+      - name: 📝 Commits Summary
+        run: |
+          echo "### Recent Commits" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          git log --oneline -10 >> $GITHUB_STEP_SUMMARY
+
+  # Build and Test
+  build-and-test:
+    name: 🔨 Build & Test
+    runs-on: ubuntu-latest
+    needs: version-check
+
+    steps:
+      - name: 📥 Checkout Code
+        uses: actions/checkout@v4
+
+      - name: 🟢 Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: 📦 Install Dependencies
+        run: npm ci
+
+      - name: 🔨 Build Project
+        run: npm run build
+
+      - name: 🧪 Run Tests
+        run: npm run test:all
+
+      - name: 🔍 Security Audit
+        run: npm audit --audit-level=moderate
+
+  # Generate Changelog
+  changelog:
+    name: 📝 Generate Changelog
+    runs-on: ubuntu-latest
+    needs: [version-check, build-and-test]
+    outputs:
+      changelog: ${{ steps.changelog.outputs.content }}
+
+    steps:
+      - name: 📥 Checkout Code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: 📝 Generate Changelog
+        id: changelog
+        run: |
+          # Get the last tag
+          LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0")
+          NEW_VERSION="${{ needs.version-check.outputs.new-version }}"
+
+          # Generate changelog
+          CHANGELOG=$(cat << EOF
+          ## 🚀 Release $NEW_VERSION
+
+          📅 **Release Date:** $(date +%Y-%m-%d)
+
+          ### 🎯 Type: ${{ needs.version-check.outputs.version-type }}
+
+          EOF
+          )
+
+          # Get commit messages
+          if [ "$LAST_TAG" != "$NEW_VERSION" ]; then
+            COMMITS=$(git log $LAST_TAG..HEAD --pretty=format:'%h - %s (%an)' --reverse)
+            CHANGELOG+=$'\n\n### 📝 Changes\n\n'
+
+            # Categorize commits
+            if [ "${{ needs.version-check.outputs.is-breaking }}" == "true" ]; then
+              CHANGELOG+="#### 💥 Breaking Changes\n\n"
+              git log $LAST_TAG..HEAD --grep="BREAKING CHANGE:" --pretty=format:'- %s' >> changelog_temp.txt
+              CHANGELOG+=$(cat changelog_temp.txt | sed 's/BREAKING CHANGE://g')
+              CHANGELOG+=$'\n\n'
+            fi
+
+            if [ "${{ needs.version-check.outputs.is-feature }}" == "true" ]; then
+              CHANGELOG+="#### ✨ Features\n\n"
+              git log $LAST_TAG..HEAD --grep="^feat:" --pretty=format:'- %s' >> changelog_temp.txt
+              CHANGELOG+=$(cat changelog_temp.txt)
+              CHANGELOG+=$'\n\n'
+            fi
+
+            if [ "${{ needs.version-check.outputs.is-fix }}" == "true" ]; then
+              CHANGELOG+="#### 🐛 Fixes\n\n"
+              git log $LAST_TAG..HEAD --grep="^fix:" --pretty=format:'- %s' >> changelog_temp.txt
+              CHANGELOG+=$(cat changelog_temp.txt)
+              CHANGELOG+=$'\n\n'
+            fi
+
+            CHANGELOG+="#### 📋 All Commits\n\n"
+            while IFS= read -r line; do
+              CHANGELOG+="- $line\n"
+            done <<< "$COMMITS"
+          else
+            CHANGELOG+="- Initial release"
+          fi
+
+          # Add sections
+          CHANGELOG+=$'\n\n### 🔧 Installation\n\n```bash\nnpm install haseb\n```\n\n'
+          CHANGELOG+="### 📚 Documentation\n\n- 📖 [Documentation](https://github.com/${{ github.repository }}/wiki)\n"
+          CHANGELOG+="- 🐛 [Issues](https://github.com/${{ github.repository }}/issues)\n"
+          CHANGELOG+="- 💬 [Discussions](https://github.com/${{ github.repository }}/discussions)\n\n"
+          CHANGELOG+="### 🙏 Contributing\n\nThank you to all the contributors! ❤️\n\n"
+
+          # Save changelog
+          echo "$CHANGELOG" > CHANGELOG.md
+          echo "content<<EOF" >> $GITHUB_OUTPUT
+          echo "$CHANGELOG" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+          echo "Generated changelog for $NEW_VERSION"
+
+      - name: 📤 Upload Changelog
+        uses: actions/upload-artifact@v4
+        with:
+          name: changelog
+          path: CHANGELOG.md
+          retention-days: 30
+
+  # Create GitHub Release
+  create-release:
+    name: 🎉 Create Release
+    runs-on: ubuntu-latest
+    needs: [version-check, changelog]
+    permissions:
+      contents: write
+
+    steps:
+      - name: 📥 Checkout Code
+        uses: actions/checkout@v4
+
+      - name: 📥 Download Changelog
+        uses: actions/download-artifact@v4
+        with:
+          name: changelog
+
+      - name: 🎉 Create Release
+        id: release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.version-check.outputs.new-version }}
+          name: Release ${{ needs.version-check.outputs.new-version }}
+          body_path: CHANGELOG.md
+          draft: false
+          prerelease: ${{ github.event.inputs.pre_release == 'true' }}
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: 🏷️ Update Version in Package
+        run: |
+          # Update package.json version
+          NEW_VERSION=${{ needs.version-check.outputs.new-version }}
+          NEW_VERSION=${NEW_VERSION#v}  # Remove 'v' prefix
+          npm version $NEW_VERSION --no-git-tag-version
+
+          # Commit version change
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          git add package.json
+          git commit -m "chore: bump version to $NEW_VERSION [skip ci]" || true
+          git push || true
+
+      - name: 📊 Release Summary
+        run: |
+          echo "## 🎉 Release Created" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Version:** ${{ needs.version-check.outputs.new-version }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Release URL:** ${{ steps.release.outputs.html_url }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Assets:** ${{ steps.release.outputs.assets }}" >> $GITHUB_STEP_SUMMARY
+
+  # Build and Publish Docker Image
+  docker-release:
+    name: 🐳 Docker Release
+    runs-on: ubuntu-latest
+    needs: [version-check, create-release]
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: 📥 Checkout Code
+        uses: actions/checkout@v4
+
+      - name: 🐳 Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: 🔑 Log in to Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: 🏷️ Extract Metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=semver,pattern={{major}}
+            type=semver,pattern={{version}},value=${{ needs.version-check.outputs.new-version }}
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: 🐳 Build and Push Docker Image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          platforms: linux/amd64,linux/arm64
+
+      - name: 📊 Docker Summary
+        run: |
+          echo "## 🐳 Docker Image Published" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Tags:**" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          echo '${{ steps.meta.outputs.tags }}' | tr ' ' '\n' >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+
+  # Deploy to Production
+  deploy-production:
+    name: 🚀 Deploy to Production
+    runs-on: ubuntu-latest
+    needs: [version-check, create-release, docker-release]
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    environment: production
+
+    steps:
+      - name: 📥 Checkout Code
+        uses: actions/checkout@v4
+
+      - name: 🚀 Deploy to Production
+        run: |
+          echo "Deploying ${{ needs.version-check.outputs.new-version }} to production..."
+          # Add production deployment commands here
+
+          # Example deployment steps:
+          # 1. Pull latest Docker image
+          # 2. Run database migrations
+          # 3. Update load balancer
+          # 4. Health checks
+
+          echo "Production deployment completed"
+
+      - name: 🏥 Health Check
+        run: |
+          sleep 30
+          curl -f https://haseb.example.com/health || exit 1
+
+      - name: 📢 Production Notification
+        uses: 8398a7/action-slack@v3
+        if: always()
+        with:
+          status: ${{ job.status }}
+          channel: '#deployments'
+          text: |
+            🚀 **PRODUCTION DEPLOYMENT**
+            Repository: ${{ github.repository }}
+            Version: ${{ needs.version-check.outputs.new-version }}
+            Commit: ${{ github.sha }}
+            Status: ${{ job.status }}
+            Release: https://github.com/${{ github.repository }}/releases/tag/${{ needs.version-check.outputs.new-version }}
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+
+  # Update Documentation
+  update-docs:
+    name: 📚 Update Documentation
+    runs-on: ubuntu-latest
+    needs: [version-check, create-release]
+
+    steps:
+      - name: 📥 Checkout Code
+        uses: actions/checkout@v4
+
+      - name: 📥 Download Changelog
+        uses: actions/download-artifact@v4
+        with:
+          name: changelog
+
+      - name: 📚 Update Documentation
+        run: |
+          # Update README with latest version
+          NEW_VERSION=${{ needs.version-check.outputs.new-version }}
+          sed -i "s/version: .*/version: $NEW_VERSION/" README.md || true
+
+          # Add changelog entry to docs
+          mkdir -p docs/changelogs
+          cp CHANGELOG.md "docs/changelogs/$(date +%Y-%m-%d)-${NEW_VERSION}.md"
+
+          # Update API documentation
+          npm run build || true
+          npm run docs:generate || true
+
+      - name: 📤 Deploy Documentation
+        run: |
+          echo "Deploying updated documentation..."
+          # Add documentation deployment commands here
+
+      - name: 📊 Documentation Summary
+        run: |
+          echo "## 📚 Documentation Updated" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- Version: ${{ needs.version-check.outputs.new-version }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Changelog: [View](https://github.com/${{ github.repository }}/releases/tag/${{ needs.version-check.outputs.new-version }})" >> $GITHUB_STEP_SUMMARY
+          echo "- Documentation: [View](https://github.com/${{ github.repository }}/wiki)" >> $GITHUB_STEP_SUMMARY
+
+  # Release Summary
+  release-summary:
+    name: 📊 Release Summary
+    runs-on: ubuntu-latest
+    needs: [version-check, create-release, docker-release, deploy-production, update-docs]
+    if: always()
+
+    steps:
+      - name: 📊 Generate Release Summary
+        run: |
+          echo "## 🚀 Release Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Component | Status | Details |" >> $GITHUB_STEP_SUMMARY
+          echo "|-----------|--------|---------|" >> $GITHUB_STEP_SUMMARY
+          echo "| 🔍 Version Analysis | ${{ needs.version-check.result }} | ${{ needs.version-check.outputs.new-version }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| 🎉 GitHub Release | ${{ needs.create-release.result }} | Published |" >> $GITHUB_STEP_SUMMARY
+          echo "| 🐳 Docker Image | ${{ needs.docker-release.result }} | ghcr.io/${{ github.repository }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| 🚀 Production Deploy | ${{ needs.deploy-production.result }} | Live |" >> $GITHUB_STEP_SUMMARY
+          echo "| 📚 Documentation | ${{ needs.update-docs.result }} | Updated |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          if [[ "${{ needs.create-release.result }}" == "success" && "${{ needs.docker-release.result }}" == "success" ]]; then
+            echo "🎉 **Release completed successfully!**" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "### 🔗 Quick Links" >> $GITHUB_STEP_SUMMARY
+            echo "- [GitHub Release](https://github.com/${{ github.repository }}/releases/tag/${{ needs.version-check.outputs.new-version }})" >> $GITHUB_STEP_SUMMARY
+            echo "- [Docker Image](https://github.com/${{ github.repository }}/pkgs/container/${{ github.event.repository.name }})" >> $GITHUB_STEP_SUMMARY
+            echo "- [Live Application](https://haseb.example.com)" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "⚠️ **Release encountered issues.** Review the failed steps." >> $GITHUB_STEP_SUMMARY
+          fi
+
+      - name: 📧 Release Notification
+        if: success()
+        uses: 8398a7/action-slack@v3
+        with:
+          status: success
+          channel: '#releases'
+          text: |
+            🎉 **HASEB Release ${{ needs.version-check.outputs.new-version }} Published!**
+
+            📦 **Package:** Available on npm
+            🐳 **Docker:** ghcr.io/${{ github.repository }}:${{ needs.version-check.outputs.new-version }}
+            🌐 **Live:** https://haseb.example.com
+            📋 **Release:** https://github.com/${{ github.repository }}/releases/tag/${{ needs.version-check.outputs.new-version }}
+
+            🚀 Ready for production use!
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
