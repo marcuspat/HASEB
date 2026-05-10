@@ -166,6 +166,34 @@ export const migrations = [
       DROP TABLE IF EXISTS migrations;
     `,
   },
+  {
+    version: '008',
+    name: 'create_metric_sets_table',
+    up: `
+      CREATE TABLE IF NOT EXISTS metric_sets (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        evaluation_id UUID NOT NULL REFERENCES evaluations(id) ON DELETE CASCADE,
+        state VARCHAR(16) NOT NULL DEFAULT 'open'
+          CHECK (state IN ('open', 'finalised', 'superseded')),
+        dimensions JSONB NOT NULL DEFAULT '[]',
+        viability_score JSONB,
+        weighting_version VARCHAR(32),
+        replaces_metric_set_id UUID REFERENCES metric_sets(id) ON DELETE SET NULL,
+        created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+        finalised_at TIMESTAMP WITH TIME ZONE
+      );
+
+      CREATE UNIQUE INDEX idx_metric_sets_evaluation_active
+        ON metric_sets(evaluation_id)
+        WHERE state <> 'superseded';
+      CREATE INDEX idx_metric_sets_state ON metric_sets(state);
+      CREATE INDEX idx_metric_sets_dimensions ON metric_sets USING GIN(dimensions);
+      CREATE INDEX idx_metric_sets_viability_score ON metric_sets USING GIN(viability_score);
+    `,
+    down: `
+      DROP TABLE IF EXISTS metric_sets;
+    `,
+  },
 ];
 
 export class MigrationManager {

@@ -168,6 +168,32 @@ export const sqliteMigrations = [
       DROP TABLE IF EXISTS migrations;
     `,
   },
+  {
+    version: '008',
+    name: 'create_metric_sets_table',
+    up: `
+      CREATE TABLE IF NOT EXISTS metric_sets (
+        id TEXT PRIMARY KEY,
+        evaluation_id TEXT NOT NULL REFERENCES evaluations(id) ON DELETE CASCADE,
+        state TEXT NOT NULL DEFAULT 'open'
+          CHECK (state IN ('open', 'finalised', 'superseded')),
+        dimensions TEXT NOT NULL DEFAULT '[]',
+        viability_score TEXT,
+        weighting_version TEXT,
+        replaces_metric_set_id TEXT REFERENCES metric_sets(id) ON DELETE SET NULL,
+        created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        finalised_at DATETIME
+      );
+
+      CREATE UNIQUE INDEX idx_metric_sets_evaluation_active
+        ON metric_sets(evaluation_id)
+        WHERE state <> 'superseded';
+      CREATE INDEX idx_metric_sets_state ON metric_sets(state);
+    `,
+    down: `
+      DROP TABLE IF EXISTS metric_sets;
+    `,
+  },
 ];
 
 export class SqliteMigrationManager {
