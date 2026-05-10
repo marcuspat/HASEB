@@ -40,24 +40,46 @@ export type UserId = string & { readonly __brand: 'UserId' };
 export type MetricSetId = string & { readonly __brand: 'MetricSetId' };
 
 // --- Aggregate-shape forward declarations -----------------------------------
-// Concrete shapes live alongside their persistence mappers; contracts only
-// need to know the aggregate exists. This keeps the dependency direction
-// pointing *into* the domain layer.
+// Concrete shapes live alongside their persistence mappers; contracts declare
+// the public-facing fields each aggregate exposes to repositories. This keeps
+// the dependency direction pointing *into* the domain layer while still
+// letting tests and in-memory implementations type-check their literals.
 
 export interface EvaluationAggregate {
   readonly id: EvaluationId;
+  readonly agentId: AgentId;
+  readonly benchmarkId: BenchmarkId;
+  readonly state: EvaluationState;
+  readonly submittedAt: string;
+  readonly completedAt: string | null;
+  readonly steps?: readonly EvaluationStep[];
 }
+
 export interface AgentAggregate {
   readonly id: AgentId;
+  readonly name: string;
+  readonly provider: string;
+  readonly fingerprint: string;
+  readonly state: 'active' | 'archived';
 }
+
 export interface BenchmarkAggregate {
   readonly id: BenchmarkId;
+  readonly name: string;
+  readonly version: string;
+  readonly kind: 'code' | 'gui' | 'reasoning';
+  readonly state: 'active' | 'deprecated';
 }
+
 export interface UserAggregate {
   readonly id: UserId;
+  readonly email: string;
+  readonly refreshTokens?: ReadonlyMap<string, RefreshTokenRecord>;
 }
+
 export interface MetricSetAggregate {
   readonly id: MetricSetId;
+  readonly evaluationId?: EvaluationId;
 }
 
 // --- Repository contracts ---------------------------------------------------
