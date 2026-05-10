@@ -444,16 +444,16 @@ describe('Evaluation Metrics Integration Tests', () => {
     });
 
     it('should handle large configuration objects', async () => {
+      const largeParameters = Object.fromEntries(
+        Array.from({ length: 100 }, (_, i) => [`param${i}`, `value${i}`])
+      );
+      const largeNested = Object.fromEntries(
+        Array.from({ length: 50 }, (_, i) => [`nested${i}`, i])
+      );
       const largeConfig = {
         timeout: 1000,
-        parameters: {
-          [Array.from({ length: 100 }, (_, i) => `param${i}`): `value${i}`
-        },
-        settings: {
-          nested: {
-            [Array.from({ length: 50 }, (_, i) => `nested${i}`): i
-          }
-        }
+        parameters: largeParameters,
+        settings: { nested: largeNested },
       };
 
       const result = await evaluationOrchestrator.executeEvaluation(
