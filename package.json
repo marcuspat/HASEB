@@ -16,6 +16,7 @@
     "test:all": "npm run test:unit && npm run test:integration && npm run test:e2e",
     "test:domain": "NODE_OPTIONS='--experimental-vm-modules' jest tests/unit/domain --no-coverage",
     "bench": "tsx benchmarks/process-viability-calculator.bench.ts",
+    "bench:bridge": "tsx benchmarks/domain-event-bridge.bench.ts",
     "build": "tsc",
     "lint": "echo 'Add linting here'",
     "typecheck": "tsc --noEmit",

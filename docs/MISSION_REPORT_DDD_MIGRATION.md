@@ -22,9 +22,12 @@ iteration.
 | `Evaluation` state-machine enforcement            | ✅ Complete    |
 | In-memory read-side query services                | ✅ Complete    |
 | Architecture-fitness tests (domain layer purity)  | ✅ Complete    |
-| `WebSocketManager.broadcast` → bridge wiring      | ⬜ Open        |
-| `EvaluationModel` → `IEvaluationRepository`       | ⬜ Open        |
-| `BaseMetricCollector.collect()` canonical method  | ⬜ Open        |
+| `WebSocketBroadcasterAdapter` (bridge wiring)     | ✅ Complete    |
+| `EvaluationRepositoryAdapter` (legacy → contract) | ✅ Complete    |
+| `MetricCollector` contract + legacy adapter       | ✅ Complete    |
+| Bus → bridge → adapter throughput benchmark       | ✅ Complete    |
+| Bind adapters in `src/server.ts` composition root | ⬜ Open        |
+| Native concrete `MetricCollector` implementations | ⬜ Open        |
 | Pre-existing 859 `tsc` errors                     | ⬜ Out of band |
 
 ## Ranked follow-ups (work queue)
@@ -58,22 +61,33 @@ and update this file.
    `WireBroadcaster` port. The existing `WebSocketManager` is untouched;
    wiring its `broadcast()` to the bridge is a follow-up below.
 
-4b. **`WebSocketManager.broadcast` → bridge wiring.**
-   - Implement a tiny adapter that satisfies `WireBroadcaster` from a
-     `WebSocketManager` instance (~10 lines) and bind both at server boot.
-   - The bridge already has tests; adapter wiring is a one-shot patch in
-     `src/server.ts`.
+4b. ✅ **`WebSocketBroadcasterAdapter`.** — landed in iteration #4 at
+   `src/orchestrator/WebSocketBroadcasterAdapter.ts`. Duck-typed against
+   a `BroadcasterPort` (the legacy `WebSocketManager` satisfies it
+   structurally without being imported). Routes `evaluation:{id}` to the
+   evaluation routing key and all other topics to a single
+   `__system__` pseudo-id. The remaining wiring step is a one-line
+   binding in `src/server.ts`.
 
 ### Tier 2 — Code-level adoption
 
-5. **`EvaluationModel` adapter satisfying `IEvaluationRepository`.**
-   - Thin wrapper around the existing model class so application code can
-     depend on the contract instead of the concrete model.
-   - No persistence-shape changes.
+5. ✅ **`EvaluationRepositoryAdapter`.** — landed in iteration #4 at
+   `src/database/repositories/EvaluationRepositoryAdapter.ts`. Duck-typed
+   against `EvaluationModelPort`, implements `IEvaluationRepository`. Has
+   a bidirectional state mapper (`legacyToAggregateState` /
+   `aggregateToLegacyState`) that handles the legacy enum's narrower set
+   (collapses `running`/`collecting`/`analyzing` → `running`; refines
+   `running` → `collecting` when a metric-set is attached). Pagination
+   converted between (offset, limit) and (page, limit).
 
-6. **`BaseMetricCollector.collect()` canonical method.**
-   - Promote the existing `start()` flow to a `collect(run)` returning a
-     typed `MetricDimension`, matching `docs/ddd/contexts/metrics-context.md`.
+6. ✅ **`MetricCollector` contract + `LegacyMetricCollectorAdapter`.** —
+   landed in iteration #4 at `src/domain/metric-collector.ts`. The
+   contract is the canonical `collect(run): Promise<MetricDimension>`
+   port. The legacy adapter wraps any object with `gatherMetrics()`,
+   applies a `toDimension` mapper, and surfaces typed `CollectorError`s
+   with the dimension discriminator. Also provides `MetricCollectorSet`
+   and `collectAllDimensions(set, run)` for parallel collection of the
+   five families.
 
 7. ✅ **`Evaluation` state-machine enforcement.** — landed in iteration #3
    at `src/domain/evaluation-state-machine.ts`. Pure helper module with
@@ -97,6 +111,13 @@ and update this file.
    `npm run bench`. Reference container measurement: **3.4M ops/sec, p50
    = 0.3 µs, p99 = 0.5 µs** — well above the 1M/sec target.
 
+9b. ✅ **Bus → bridge → adapter throughput benchmark.** — landed in
+    iteration #4 at `benchmarks/domain-event-bridge.bench.ts` with
+    `npm run bench:bridge`. Reference container measurement: **53k
+    events/sec** end-to-end, p_avg = 18.8 µs/event. Bus serialises
+    per-correlationId; this is the sequential ceiling. Adequate for
+    HASEB's evaluation-step event rate.
+
 10. ✅ **In-memory read-side query services.** — landed in iteration #3 at
     `src/domain/in-memory/InMemoryQueryServices.ts`.
     `InMemoryEvaluationQueryService`, `InMemoryLeaderboardQueryService`
@@ -118,6 +139,7 @@ and update this file.
 | #1        | 2026-05-10 | Domain layer foundation (events, contracts, MetricSet, calculator) + 6 test-file repairs + 10 new green tests. |
 | #2        | 2026-05-10 | Tier-1 items 1–3 (metric_sets migration, in-memory repos, DomainEventBus) + benchmark + tests. |
 | #3        | 2026-05-10 | DomainEventWebSocketBridge + Evaluation state machine + in-memory query services + domain-layer architecture-fitness tests; aggregate contracts widened. 55/55 domain tests green. |
+| #4        | 2026-05-10 | Three duck-typed legacy adapters: WebSocketBroadcasterAdapter (Tier 1 #4b), EvaluationRepositoryAdapter (Tier 2 #5), MetricCollector contract + LegacyMetricCollectorAdapter (Tier 2 #6). Bus→bridge→adapter benchmark (53k events/sec). 76/76 domain+adapter tests green. |
 
 ## Conventions for follow-up iterations
 
