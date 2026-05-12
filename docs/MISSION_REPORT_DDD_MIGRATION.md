@@ -26,8 +26,10 @@ iteration.
 | `EvaluationRepositoryAdapter` (legacy → contract) | ✅ Complete    |
 | `MetricCollector` contract + legacy adapter       | ✅ Complete    |
 | Bus → bridge → adapter throughput benchmark       | ✅ Complete    |
-| Bind adapters in `src/server.ts` composition root | ⬜ Open        |
-| Native concrete `MetricCollector` implementations | ⬜ Open        |
+| Native concrete `MetricCollector` implementations | ✅ Complete    |
+| Domain runtime composition root                    | ✅ Complete    |
+| Five-collector throughput benchmark               | ✅ Complete    |
+| Bind `bootstrapDomainRuntime` in `src/server.ts`  | ⬜ Open        |
 | Pre-existing 859 `tsc` errors                     | ⬜ Out of band |
 
 ## Ranked follow-ups (work queue)
@@ -89,6 +91,24 @@ and update this file.
    and `collectAllDimensions(set, run)` for parallel collection of the
    five families.
 
+6b. ✅ **Native `MetricCollector` implementations.** — landed in iteration
+    #5 at `src/domain/collectors/native-collectors.ts`. Five pure
+    implementations — `PerformanceCollector`, `EfficiencyCollector`,
+    `CostCollector`, `RobustnessCollector`, `QualityCollector` — all
+    operating on `EvaluationRunSummary` with graceful degradation when
+    step-level data (latency, tokens, quality judgements) is missing.
+    `createNativeCollectorSet({ performance })` builds the canonical
+    five-collector set in one call. No dependency on the legacy
+    `BaseMetricCollector`.
+
+6c. ✅ **Domain runtime composition root.** — landed in iteration #5 at
+    `src/composition/domain-runtime.ts`. `bootstrapDomainRuntime({
+    broadcaster })` returns a fully-wired runtime with bus, started
+    bridge, in-memory repositories, query services, and the
+    `ProcessViabilityCalculator` singleton — plus a `shutdown()` that
+    stops the bridge. Independent of `src/server.ts`; a future one-line
+    `import` finishes the wiring.
+
 7. ✅ **`Evaluation` state-machine enforcement.** — landed in iteration #3
    at `src/domain/evaluation-state-machine.ts`. Pure helper module with
    `canTransition`, `assertTransition`, `nextAllowedStates`,
@@ -118,6 +138,12 @@ and update this file.
     per-correlationId; this is the sequential ceiling. Adequate for
     HASEB's evaluation-step event rate.
 
+9c. ✅ **Five-collector throughput benchmark.** — landed in iteration #5
+    at `benchmarks/native-collectors.bench.ts` with `npm run
+    bench:collectors`. Reference container: **134k full sets/sec for
+    50-step runs (7.4 µs/set)** and **35k for 250-step runs (28.6 µs/set)**.
+    Past the 100k informational target for typical runs.
+
 10. ✅ **In-memory read-side query services.** — landed in iteration #3 at
     `src/domain/in-memory/InMemoryQueryServices.ts`.
     `InMemoryEvaluationQueryService`, `InMemoryLeaderboardQueryService`
@@ -140,6 +166,7 @@ and update this file.
 | #2        | 2026-05-10 | Tier-1 items 1–3 (metric_sets migration, in-memory repos, DomainEventBus) + benchmark + tests. |
 | #3        | 2026-05-10 | DomainEventWebSocketBridge + Evaluation state machine + in-memory query services + domain-layer architecture-fitness tests; aggregate contracts widened. 55/55 domain tests green. |
 | #4        | 2026-05-10 | Three duck-typed legacy adapters: WebSocketBroadcasterAdapter (Tier 1 #4b), EvaluationRepositoryAdapter (Tier 2 #5), MetricCollector contract + LegacyMetricCollectorAdapter (Tier 2 #6). Bus→bridge→adapter benchmark (53k events/sec). 76/76 domain+adapter tests green. |
+| #5        | 2026-05-10 | Five native MetricCollector implementations (`src/domain/collectors/`) + domain runtime composition root (`src/composition/domain-runtime.ts`) + five-collector benchmark. 95/95 domain+composition tests green. 134k 50-step sets/sec. |
 
 ## Conventions for follow-up iterations
 
