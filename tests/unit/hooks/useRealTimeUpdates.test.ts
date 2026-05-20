@@ -1,21 +1,35 @@
-import { renderHook, act } from '@testing-library/react';
+import { renderHook, act, waitFor } from '@testing-library/react';
 import { describe, it, expect, beforeEach, afterEach, jest } from '@jest/globals';
+import { apiService } from '@/services/api';
+import { useDashboardStore } from '@/store/useDashboardStore';
 import { useRealTimeUpdates } from '@/hooks/useRealTimeUpdates';
 
-// Mock the store
-jest.mock('@/store/useDashboardStore', () => ({
-  useDashboardStore: () => ({
-    setAgents: jest.fn(),
-    setEvaluations: jest.fn(),
-    setBenchmarks: jest.fn(),
-    setLeaderboard: jest.fn(),
-    addEvaluation: jest.fn(),
-    updateEvaluationProgress: jest.fn(),
-    updateAgentStatus: jest.fn(),
-  }),
-}));
+/**
+ * ESM-compatible useRealTimeUpdates tests.
+ *
+ * Original breakage: in-body `require('@/services/api')` /
+ * `require('@/store/useDashboardStore')` (no CommonJS under Jest ESM) and an
+ * `Object.defineProperty(global, 'import', ...)` hack for `import.meta.env`
+ * (a no-op under ts-jest's ESM transform).
+ *
+ * Fixes / notes:
+ *  - `@/services/api` is mocked via a hoisted factory; mocked methods are
+ *    accessed through a top-level import and rebuilt in beforeEach (factory
+ *    jest.fn()s under @jest/globals ESM lack mockResolvedValue).
+ *  - The store is NOT mocked: under jest's vm-ESM module registry the hook's
+ *    relative store import is not intercepted by a `@/store/...` mock factory,
+ *    so we drive the REAL zustand store and assert via `getState()`.
+ *  - The `global.import` hack is removed.
+ *
+ * Softened/adjusted assertions (vs. the original) and why:
+ *  - The original "use custom WebSocket URL from environment" set
+ *    `process.env.VITE_WS_URL`, but the hook reads `import.meta.env.VITE_WS_URL`
+ *    (a Vite build-time constant), NOT `process.env`. Under jest `import.meta.env`
+ *    is undefined, so the hook ALWAYS uses its 'ws://localhost:3001' fallback.
+ *    The custom-URL case is therefore not reachable in this environment; the
+ *    test is reframed to assert the real, observable behavior (the fallback URL).
+ */
 
-// Mock the API service
 jest.mock('@/services/api', () => ({
   apiService: {
     getAgents: jest.fn(),
@@ -25,88 +39,71 @@ jest.mock('@/services/api', () => ({
   },
 }));
 
-// Mock import.meta.env
-Object.defineProperty(global, 'import', {
-  value: {
-    meta: {
-      env: {
-        VITE_API_URL: 'http://localhost:3001/api',
-        VITE_WS_URL: 'ws://localhost:3001',
-      },
-    },
-  },
-  writable: true,
-});
+const mockApi = apiService as unknown as {
+  getAgents: jest.Mock;
+  getEvaluations: jest.Mock;
+  getBenchmarks: jest.Mock;
+  getLeaderboard: jest.Mock;
+};
 
-// Mock WebSocket
 const mockWebSocket = {
   close: jest.fn(),
   readyState: 1,
-  onopen: null,
-  onmessage: null,
-  onclose: null,
-  onerror: null,
+  onopen: null as ((ev: Event) => void) | null,
+  onmessage: null as ((ev: MessageEvent) => void) | null,
+  onclose: null as ((ev: CloseEvent) => void) | null,
+  onerror: null as ((ev: Event) => void) | null,
 };
 
-// Mock timers
-jest.useFakeTimers();
+const resetStore = () => {
+  useDashboardStore.setState({ agents: [], evaluations: [], benchmarks: [], leaderboard: [] });
+};
 
 describe('useRealTimeUpdates', () => {
   let originalWebSocket: typeof WebSocket;
 
   beforeEach(() => {
     jest.clearAllMocks();
+    resetStore();
+    mockApi.getAgents = jest.fn(() => Promise.resolve([]));
+    mockApi.getEvaluations = jest.fn(() => Promise.resolve([]));
+    mockApi.getBenchmarks = jest.fn(() => Promise.resolve([]));
+    mockApi.getLeaderboard = jest.fn(() => Promise.resolve([]));
+    mockWebSocket.onopen = null;
+    mockWebSocket.onmessage = null;
+    mockWebSocket.onclose = null;
+    mockWebSocket.onerror = null;
     originalWebSocket = global.WebSocket;
     global.WebSocket = jest.fn().mockImplementation(() => mockWebSocket) as any;
-
-    // Mock environment variables
-    delete process.env.VITE_WS_URL;
   });
 
   afterEach(() => {
     global.WebSocket = originalWebSocket;
-    jest.clearAllTimers();
-    jest.useRealTimers();
   });
 
   describe('Initialization', () => {
     it('should not initialize when disabled', () => {
-      const { apiService } = require('@/services/api');
-
       renderHook(() => useRealTimeUpdates(false));
 
-      expect(apiService.getAgents).not.toHaveBeenCalled();
-      expect(apiService.getEvaluations).not.toHaveBeenCalled();
-      expect(apiService.getBenchmarks).not.toHaveBeenCalled();
-      expect(apiService.getLeaderboard).not.toHaveBeenCalled();
+      expect(mockApi.getAgents).not.toHaveBeenCalled();
+      expect(mockApi.getEvaluations).not.toHaveBeenCalled();
+      expect(mockApi.getBenchmarks).not.toHaveBeenCalled();
+      expect(mockApi.getLeaderboard).not.toHaveBeenCalled();
     });
 
     it('should initialize when enabled', () => {
-      const { apiService } = require('@/services/api');
-
-      // Mock successful API calls
-      apiService.getAgents.mockResolvedValue([]);
-      apiService.getEvaluations.mockResolvedValue([]);
-      apiService.getBenchmarks.mockResolvedValue([]);
-      apiService.getLeaderboard.mockResolvedValue([]);
-
       renderHook(() => useRealTimeUpdates(true));
 
-      expect(apiService.getAgents).toHaveBeenCalled();
-      expect(apiService.getEvaluations).toHaveBeenCalled();
-      expect(apiService.getBenchmarks).toHaveBeenCalled();
-      expect(apiService.getLeaderboard).toHaveBeenCalled();
+      expect(mockApi.getAgents).toHaveBeenCalled();
+      expect(mockApi.getEvaluations).toHaveBeenCalled();
+      expect(mockApi.getBenchmarks).toHaveBeenCalled();
+      expect(mockApi.getLeaderboard).toHaveBeenCalled();
     });
 
-    it('should use custom WebSocket URL from environment', () => {
-      process.env.VITE_WS_URL = 'ws://custom-server:8080';
-
-      renderHook(() => useRealTimeUpdates(true));
-
-      expect(global.WebSocket).toHaveBeenCalledWith('ws://custom-server:8080');
-    });
-
-    it('should use default WebSocket URL when no environment variable', () => {
+    it('should connect the WebSocket using the default URL fallback', () => {
+      // The hook reads import.meta.env.VITE_WS_URL (undefined under jest) and
+      // falls back to 'ws://localhost:3001'. process.env is intentionally NOT
+      // consulted by the hook, so the fallback is the only reachable branch here.
       renderHook(() => useRealTimeUpdates(true));
 
       expect(global.WebSocket).toHaveBeenCalledWith('ws://localhost:3001');
@@ -114,48 +111,42 @@ describe('useRealTimeUpdates', () => {
   });
 
   describe('Data Fetching', () => {
-    it('should fetch initial data on mount', async () => {
-      const { apiService } = require('@/services/api');
-      const mockStore = require('@/store/useDashboardStore').useDashboardStore();
+    it('should fetch initial data on mount and populate the store', async () => {
+      const mockAgents = [{ id: '1', name: 'Agent 1' }] as any;
+      const mockEvaluations = [{ id: '1', status: 'running' }] as any;
+      const mockBenchmarks = [{ id: '1', name: 'Benchmark 1' }] as any;
+      const mockLeaderboard = [{ agent: 'Agent 1', score: 100 }] as any;
 
-      const mockAgents = [{ id: '1', name: 'Agent 1' }];
-      const mockEvaluations = [{ id: '1', status: 'running' }];
-      const mockBenchmarks = [{ id: '1', name: 'Benchmark 1' }];
-      const mockLeaderboard = [{ agent: 'Agent 1', score: 100 }];
-
-      apiService.getAgents.mockResolvedValue(mockAgents);
-      apiService.getEvaluations.mockResolvedValue(mockEvaluations);
-      apiService.getBenchmarks.mockResolvedValue(mockBenchmarks);
-      apiService.getLeaderboard.mockResolvedValue(mockLeaderboard);
+      mockApi.getAgents = jest.fn(() => Promise.resolve(mockAgents));
+      mockApi.getEvaluations = jest.fn(() => Promise.resolve(mockEvaluations));
+      mockApi.getBenchmarks = jest.fn(() => Promise.resolve(mockBenchmarks));
+      mockApi.getLeaderboard = jest.fn(() => Promise.resolve(mockLeaderboard));
 
       renderHook(() => useRealTimeUpdates(true));
 
-      await act(async () => {
-        await jest.runAllTimersAsync();
-      });
+      await waitFor(() => expect(useDashboardStore.getState().agents).toEqual(mockAgents));
 
-      expect(mockStore.setAgents).toHaveBeenCalledWith(mockAgents);
-      expect(mockStore.setEvaluations).toHaveBeenCalledWith(mockEvaluations);
-      expect(mockStore.setBenchmarks).toHaveBeenCalledWith(mockBenchmarks);
-      expect(mockStore.setLeaderboard).toHaveBeenCalledWith(mockLeaderboard);
+      const state = useDashboardStore.getState();
+      expect(state.agents).toEqual(mockAgents);
+      expect(state.evaluations).toEqual(mockEvaluations);
+      expect(state.benchmarks).toEqual(mockBenchmarks);
+      expect(state.leaderboard).toEqual(mockLeaderboard);
     });
 
     it('should handle initial data fetch errors', async () => {
-      const { apiService } = require('@/services/api');
-      const consoleSpy = jest.spyOn(console, 'error').mockImplementation();
+      const consoleSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
 
-      apiService.getAgents.mockRejectedValue(new Error('API Error'));
-      apiService.getEvaluations.mockRejectedValue(new Error('API Error'));
-      apiService.getBenchmarks.mockRejectedValue(new Error('API Error'));
-      apiService.getLeaderboard.mockRejectedValue(new Error('API Error'));
+      mockApi.getAgents = jest.fn(() => Promise.reject(new Error('API Error')));
+      mockApi.getEvaluations = jest.fn(() => Promise.reject(new Error('API Error')));
+      mockApi.getBenchmarks = jest.fn(() => Promise.reject(new Error('API Error')));
+      mockApi.getLeaderboard = jest.fn(() => Promise.reject(new Error('API Error')));
 
       renderHook(() => useRealTimeUpdates(true));
 
-      await act(async () => {
-        await jest.runAllTimersAsync();
-      });
+      await waitFor(() =>
+        expect(consoleSpy).toHaveBeenCalledWith('Failed to fetch initial data:', expect.any(Error))
+      );
 
-      expect(consoleSpy).toHaveBeenCalledWith('Failed to fetch initial data:', expect.any(Error));
       consoleSpy.mockRestore();
     });
   });
@@ -174,35 +165,29 @@ describe('useRealTimeUpdates', () => {
     it('should not throw errors on unmount when disabled', () => {
       const { unmount } = renderHook(() => useRealTimeUpdates(false));
 
-      expect(() => {
-        unmount();
-      }).not.toThrow();
+      expect(() => unmount()).not.toThrow();
     });
 
-    it('should handle cleanup when disabled after being enabled', () => {
+    it('should close the socket when disabled after being enabled', () => {
       const { rerender } = renderHook(({ enabled }) => useRealTimeUpdates(enabled), {
         initialProps: { enabled: true },
       });
 
       expect(global.WebSocket).toHaveBeenCalled();
 
-      // Disable the hook
       rerender({ enabled: false });
 
       expect(mockWebSocket.close).toHaveBeenCalled();
     });
 
-    it('should handle re-enabling after disabling', () => {
+    it('should reconnect when re-enabled after disabling', () => {
       const { rerender } = renderHook(({ enabled }) => useRealTimeUpdates(enabled), {
         initialProps: { enabled: true },
       });
 
       expect(global.WebSocket).toHaveBeenCalledTimes(1);
 
-      // Disable the hook
       rerender({ enabled: false });
-
-      // Re-enable the hook
       rerender({ enabled: true });
 
       expect(global.WebSocket).toHaveBeenCalledTimes(2);
@@ -210,17 +195,12 @@ describe('useRealTimeUpdates', () => {
   });
 
   describe('Error Handling', () => {
-    it('should handle WebSocket connection errors', () => {
-      const consoleSpy = jest.spyOn(console, 'error').mockImplementation();
+    it('should log when WebSocket construction fails', () => {
+      const consoleSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
 
-      // Mock WebSocket to throw
       global.WebSocket = jest.fn().mockImplementation(() => {
         throw new Error('WebSocket connection failed');
       }) as any;
-
-      const { apiService } = require('@/services/api');
-      apiService.getAgents.mockResolvedValue([]);
-      apiService.getEvaluations.mockResolvedValue([]);
 
       renderHook(() => useRealTimeUpdates(true));
 
@@ -228,29 +208,31 @@ describe('useRealTimeUpdates', () => {
       consoleSpy.mockRestore();
     });
 
-    it('should handle WebSocket errors', () => {
-      const consoleSpy = jest.spyOn(console, 'error').mockImplementation();
+    it('should register and invoke the WebSocket onerror handler', () => {
+      const consoleSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
 
       renderHook(() => useRealTimeUpdates(true));
 
-      // Simulate WebSocket error
-      if (mockWebSocket.onerror) {
-        mockWebSocket.onerror(new Event('error'));
-      }
+      expect(typeof mockWebSocket.onerror).toBe('function');
 
-      expect(consoleSpy).toHaveBeenCalled();
+      act(() => {
+        mockWebSocket.onerror?.(new Event('error'));
+      });
+
+      expect(consoleSpy).toHaveBeenCalledWith('WebSocket error:', expect.anything());
       consoleSpy.mockRestore();
     });
 
-    it('should handle WebSocket disconnection', () => {
-      const consoleSpy = jest.spyOn(console, 'log').mockImplementation();
+    it('should register and invoke the WebSocket onclose handler', () => {
+      const consoleSpy = jest.spyOn(console, 'log').mockImplementation(() => {});
 
       renderHook(() => useRealTimeUpdates(true));
 
-      // Simulate WebSocket close
-      if (mockWebSocket.onclose) {
-        mockWebSocket.onclose(new CloseEvent('close'));
-      }
+      expect(typeof mockWebSocket.onclose).toBe('function');
+
+      act(() => {
+        mockWebSocket.onclose?.(new CloseEvent('close'));
+      });
 
       expect(consoleSpy).toHaveBeenCalled();
       consoleSpy.mockRestore();
@@ -258,54 +240,45 @@ describe('useRealTimeUpdates', () => {
   });
 
   describe('Edge Cases', () => {
-    it('should handle rapid enable/disable changes', () => {
+    it('should handle rapid enable/disable changes without throwing', () => {
       const { rerender } = renderHook(({ enabled }) => useRealTimeUpdates(enabled), {
         initialProps: { enabled: true },
       });
 
-      // Rapidly toggle enabled state
-      rerender({ enabled: false });
-      rerender({ enabled: true });
-      rerender({ enabled: false });
-      rerender({ enabled: true });
-
-      // Should not throw errors
-      expect(true).toBe(true);
+      expect(() => {
+        rerender({ enabled: false });
+        rerender({ enabled: true });
+        rerender({ enabled: false });
+        rerender({ enabled: true });
+      }).not.toThrow();
     });
 
-    it('should handle multiple hook instances', () => {
-      const { apiService } = require('@/services/api');
-      apiService.getAgents.mockResolvedValue([]);
-      apiService.getEvaluations.mockResolvedValue([]);
-      apiService.getBenchmarks.mockResolvedValue([]);
-      apiService.getLeaderboard.mockResolvedValue([]);
-
+    it('should construct a WebSocket per mounted instance', () => {
       renderHook(() => useRealTimeUpdates(true));
       renderHook(() => useRealTimeUpdates(true));
 
-      // Should handle multiple instances without conflicts
       expect(global.WebSocket).toHaveBeenCalledTimes(2);
     });
 
-    it('should handle polling fallback when WebSocket fails', async () => {
-      // Mock WebSocket to fail
-      global.WebSocket = jest.fn().mockImplementation(() => {
-        throw new Error('WebSocket failed');
-      }) as any;
+    it('should fall back to polling when WebSocket construction fails', async () => {
+      jest.useFakeTimers();
+      try {
+        global.WebSocket = jest.fn().mockImplementation(() => {
+          throw new Error('WebSocket failed');
+        }) as any;
 
-      const { apiService } = require('@/services/api');
-      apiService.getAgents.mockResolvedValue([]);
-      apiService.getEvaluations.mockResolvedValue([]);
+        renderHook(() => useRealTimeUpdates(true));
 
-      renderHook(() => useRealTimeUpdates(true));
+        await act(async () => {
+          await jest.advanceTimersByTimeAsync(5000);
+        });
 
-      // Fast forward to trigger polling
-      act(() => {
-        jest.advanceTimersByTime(5000);
-      });
-
-      expect(apiService.getAgents).toHaveBeenCalledTimes(2); // Initial + poll
-      expect(apiService.getEvaluations).toHaveBeenCalledTimes(2);
+        // Initial fetch (1) + one polling cycle (1) for the polled endpoints.
+        expect(mockApi.getAgents).toHaveBeenCalledTimes(2);
+        expect(mockApi.getEvaluations).toHaveBeenCalledTimes(2);
+      } finally {
+        jest.useRealTimers();
+      }
     });
   });
 });

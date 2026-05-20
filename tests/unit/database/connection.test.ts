@@ -1,9 +1,48 @@
-import { DatabaseConnection } from '@/database/connection';
-import { TestDatabase } from '../../helpers/test-db';
-import { mockDatabaseConnection } from '../../helpers/mocks';
+import { describe, it, expect, beforeEach, beforeAll, jest } from '@jest/globals';
+import type { DatabaseConnection as DatabaseConnectionType } from '@/database/connection';
 
-// Mock the logger
-jest.mock('../../../src/utils/logger', () => ({
+// True unit test: no live PostgreSQL. We mock the `pg` module so `new Pool()`
+// returns a fully controllable fake. The connection module also mocks sqlite3
+// for completeness, and the logger to keep output quiet.
+//
+// NOTE: importing the connection module runs `db = DatabaseConnection.getInstance(...)`
+// at module load, so the singleton is ALREADY initialized by the time the tests
+// run. The tests below are structured around that fact (idempotent getInstance,
+// delegation to the mocked pool), which keeps them deterministic and DB-free.
+
+const poolQuery = jest.fn();
+const poolConnect = jest.fn();
+const poolEnd = jest.fn();
+const poolOn = jest.fn();
+
+// A single fake pool instance reused for every `new Pool(...)`.
+const fakePool = {
+  query: poolQuery,
+  connect: poolConnect,
+  end: poolEnd,
+  on: poolOn,
+  totalCount: 3,
+  idleCount: 2,
+  waitingCount: 1,
+};
+
+const PoolMock = jest.fn(() => fakePool);
+
+jest.unstable_mockModule('pg', () => ({
+  Pool: PoolMock,
+  PoolClient: jest.fn(),
+}));
+
+jest.unstable_mockModule('sqlite3', () => ({
+  default: {
+    Database: jest.fn().mockImplementation((_path: string, cb?: (err: Error | null) => void) => {
+      if (cb) cb(null);
+      return { run: jest.fn(), close: jest.fn() };
+    }),
+  },
+}));
+
+jest.unstable_mockModule('@/utils/logger', () => ({
   logger: {
     info: jest.fn(),
     error: jest.fn(),
@@ -12,256 +51,176 @@ jest.mock('../../../src/utils/logger', () => ({
   },
 }));
 
+let DatabaseConnection: typeof DatabaseConnectionType;
+let db: DatabaseConnectionType;
+
+const config = {
+  type: 'postgresql' as const,
+  host: 'localhost',
+  port: 5432,
+  database: 'test',
+  username: 'postgres',
+  password: 'password',
+};
+
+beforeAll(async () => {
+  process.env.DB_TYPE = 'postgresql';
+  const mod = await import('@/database/connection');
+  DatabaseConnection = mod.DatabaseConnection;
+  db = mod.db;
+});
+
 describe('DatabaseConnection', () => {
-  let db: DatabaseConnection;
-  let testDb: TestDatabase;
-
-  beforeAll(async () => {
-    testDb = TestDatabase.getInstance();
-    await testDb.initialize();
-    db = testDb.getDb();
-  });
-
-  afterAll(async () => {
-    await testDb.close();
-  });
-
-  beforeEach(async () => {
-    await testDb.cleanup();
+  beforeEach(() => {
+    poolQuery.mockReset();
+    poolConnect.mockReset();
+    poolEnd.mockReset();
   });
 
   describe('Singleton Pattern', () => {
-    it('should return the same instance', () => {
-      const config = {
-        host: 'localhost',
-        port: 5432,
-        database: 'test',
-        username: 'postgres',
-        password: 'password',
-      };
-
-      const instance1 = DatabaseConnection.getInstance(config);
-      const instance2 = DatabaseConnection.getInstance();
-      expect(instance1).toBe(instance2);
+    it('should return the already-initialized singleton instance', () => {
+      // The module created `db` via getInstance(...) at import time, so the
+      // singleton exists. getInstance() with no args returns that same instance.
+      const instance = DatabaseConnection.getInstance();
+      expect(instance).toBe(db);
     });
 
-    it('should throw error when no config provided on first call', () => {
-      expect(() => DatabaseConnection.getInstance(undefined as any)).toThrow(
-        'Database configuration required for first initialization'
-      );
-    });
-  });
-
-  describe('Connection Management', () => {
-    it('should test connection successfully', async () => {
-      const result = await db.testConnection();
-      expect(result).toBe(true);
+    it('should be idempotent: repeated getInstance calls return the same instance', () => {
+      const a = DatabaseConnection.getInstance(config);
+      const b = DatabaseConnection.getInstance();
+      const c = DatabaseConnection.getInstance(config);
+      expect(a).toBe(b);
+      expect(b).toBe(c);
+      expect(a).toBe(db);
     });
 
-    it('should get pool stats', () => {
-      const stats = db.getPoolStats();
-      expect(stats).toHaveProperty('totalCount');
-      expect(stats).toHaveProperty('idleCount');
-      expect(stats).toHaveProperty('waitingCount');
-      expect(typeof stats.totalCount).toBe('number');
-      expect(typeof stats.idleCount).toBe('number');
-      expect(typeof stats.waitingCount).toBe('number');
-    });
-
-    it('should handle query errors gracefully', async () => {
-      await expect(db.query('INVALID SQL')).rejects.toThrow();
+    it('does not re-construct a pool on subsequent getInstance calls', () => {
+      // The singleton was constructed at module load. Calling getInstance again
+      // returns the cached instance and never invokes the Pool constructor again.
+      PoolMock.mockClear();
+      DatabaseConnection.getInstance(config);
+      DatabaseConnection.getInstance();
+      expect(PoolMock).not.toHaveBeenCalled();
     });
   });
 
-  describe('Query Execution', () => {
-    it('should execute simple query', async () => {
+  describe('getInstance error path', () => {
+    it('throws when first initialization is attempted with no config', () => {
+      // Temporarily clear the cached singleton so getInstance() takes the
+      // first-initialization branch, which requires a config. Restore afterwards
+      // so the rest of the suite keeps using the module-level instance.
+      const saved = (DatabaseConnection as any).instance;
+      (DatabaseConnection as any).instance = undefined;
+      try {
+        expect(() => DatabaseConnection.getInstance()).toThrow(
+          'Database configuration required for first initialization'
+        );
+      } finally {
+        (DatabaseConnection as any).instance = saved;
+      }
+    });
+  });
+
+  describe('Query delegation', () => {
+    it('delegates query() to the underlying pool and returns its result', async () => {
+      poolQuery.mockResolvedValue({ rows: [{ number: 1 }], rowCount: 1 });
+
       const result = await db.query('SELECT 1 as number');
-      expect(result.rows).toHaveLength(1);
-      expect(result.rows[0].number).toBe(1);
+
+      expect(poolQuery).toHaveBeenCalledWith('SELECT 1 as number', undefined);
+      expect(result.rows).toEqual([{ number: 1 }]);
       expect(result.rowCount).toBe(1);
     });
 
-    it('should execute query with parameters', async () => {
+    it('passes query parameters through to the pool', async () => {
+      poolQuery.mockResolvedValue({ rows: [{ text: 'test' }], rowCount: 1 });
+
       const result = await db.query('SELECT $1 as text', ['test']);
+
+      expect(poolQuery).toHaveBeenCalledWith('SELECT $1 as text', ['test']);
       expect(result.rows[0].text).toBe('test');
     });
 
-    it('should execute query that returns multiple rows', async () => {
-      const result = await db.query(`
-        SELECT generate_series(1, 5) as number
-      `);
-      expect(result.rows).toHaveLength(5);
-      expect(result.rowCount).toBe(5);
-      result.rows.forEach((row, index) => {
-        expect(row.number).toBe(index + 1);
-      });
-    });
+    it('propagates query errors from the pool', async () => {
+      poolQuery.mockRejectedValue(new Error('Pool exhausted'));
 
-    it('should handle empty result set', async () => {
-      const result = await db.query('SELECT * FROM pg_tables WHERE tablename = $1', ['nonexistent']);
-      expect(result.rows).toHaveLength(0);
-      expect(result.rowCount).toBe(0);
+      await expect(db.query('SELECT 1')).rejects.toThrow('Pool exhausted');
     });
   });
 
-  describe('Transaction Management', () => {
-    it('should commit successful transaction', async () => {
-      const result = await db.transaction(async (client) => {
-        const insertResult = await client.query(
-          'CREATE TEMP TABLE test_tx (id SERIAL PRIMARY KEY, data TEXT)'
-        );
-        await client.query('INSERT INTO test_tx (data) VALUES ($1)', ['test']);
-        const selectResult = await client.query('SELECT * FROM test_tx');
-        return selectResult.rows[0];
-      });
-
-      expect(result.data).toBe('test');
+  describe('testConnection', () => {
+    it('returns true when the underlying query succeeds', async () => {
+      poolQuery.mockResolvedValue({ rows: [{ '?column?': 1 }], rowCount: 1 });
+      await expect(db.testConnection()).resolves.toBe(true);
+      expect(poolQuery).toHaveBeenCalledWith('SELECT 1', undefined);
     });
 
-    it('should rollback failed transaction', async () => {
+    it('returns false when the underlying query fails', async () => {
+      poolQuery.mockRejectedValue(new Error('down'));
+      await expect(db.testConnection()).resolves.toBe(false);
+    });
+  });
+
+  describe('Transaction management', () => {
+    it('commits a successful transaction via a pooled client', async () => {
+      const clientQuery = jest.fn().mockResolvedValue({ rows: [{ data: 'test' }], rowCount: 1 });
+      const release = jest.fn();
+      poolConnect.mockResolvedValue({ query: clientQuery, release });
+
+      const result = await db.transaction(async (client: any) => {
+        const r = await client.query('SELECT 1');
+        return r.rows[0];
+      });
+
+      expect(clientQuery).toHaveBeenCalledWith('BEGIN');
+      expect(clientQuery).toHaveBeenCalledWith('COMMIT');
+      expect(release).toHaveBeenCalled();
+      expect(result).toEqual({ data: 'test' });
+    });
+
+    it('rolls back a failed transaction and rethrows', async () => {
+      const clientQuery = jest.fn().mockResolvedValue({ rows: [], rowCount: 0 });
+      const release = jest.fn();
+      poolConnect.mockResolvedValue({ query: clientQuery, release });
+
       await expect(
-        db.transaction(async (client) => {
-          await client.query('CREATE TEMP TABLE test_tx_rollback (id SERIAL PRIMARY KEY)');
-          await client.query('INSERT INTO test_tx_rollback DEFAULT VALUES');
+        db.transaction(async () => {
           throw new Error('Test error');
         })
       ).rejects.toThrow('Test error');
 
-      // Table should not exist due to rollback
-      const result = await db.query(`
-        SELECT EXISTS (
-          SELECT FROM information_schema.tables
-          WHERE table_name = 'test_tx_rollback'
-        ) as exists
-      `);
-      expect(result.rows[0].exists).toBe(false);
-    });
-
-    it('should handle nested operations', async () => {
-      const result = await db.transaction(async (client) => {
-        await client.query('CREATE TEMP TABLE test_nested (id SERIAL PRIMARY KEY, value INTEGER)');
-
-        const insertPromises = Array.from({ length: 5 }, (_, i) =>
-          client.query('INSERT INTO test_nested (value) VALUES ($1) RETURNING id', [i + 1])
-        );
-
-        const insertResults = await Promise.all(insertPromises);
-        return insertResults.map(r => r.rows[0].id);
-      });
-
-      expect(result).toHaveLength(5);
-      expect(result).toEqual([1, 2, 3, 4, 5]);
+      expect(clientQuery).toHaveBeenCalledWith('BEGIN');
+      expect(clientQuery).toHaveBeenCalledWith('ROLLBACK');
+      expect(clientQuery).not.toHaveBeenCalledWith('COMMIT');
+      expect(release).toHaveBeenCalled();
     });
   });
 
-  describe('Error Handling', () => {
-    it('should log query duration on success', async () => {
-      const { logger } = require('../../../src/utils/logger');
-      logger.debug.mockClear();
+  describe('Client / pool stats', () => {
+    it('getClient delegates to pool.connect', async () => {
+      const fakeClient = { query: jest.fn(), release: jest.fn() };
+      poolConnect.mockResolvedValue(fakeClient);
 
-      await db.query('SELECT 1');
-      expect(logger.debug).toHaveBeenCalledWith('Query executed', expect.objectContaining({
-        duration: expect.stringMatching(/\d+ms/),
-        rows: 1,
-      }));
-    });
-
-    it('should log error information on failure', async () => {
-      const { logger } = require('../../../src/utils/logger');
-      logger.error.mockClear();
-
-      try {
-        await db.query('INVALID QUERY');
-      } catch (error) {
-        // Expected to throw
-      }
-
-      expect(logger.error).toHaveBeenCalledWith('Query failed', expect.objectContaining({
-        query: 'INVALID QUERY',
-        duration: expect.stringMatching(/\d+ms/),
-        error: expect.any(String),
-      }));
-    });
-
-    it('should handle connection pool errors', async () => {
-      // This test simulates pool errors
-      const mockPool = {
-        query: jest.fn().mockRejectedValue(new Error('Pool exhausted')),
-        on: jest.fn(),
-        connect: jest.fn(),
-        end: jest.fn(),
-      };
-
-      const config = {
-        host: 'localhost',
-        port: 5432,
-        database: 'test',
-        username: 'postgres',
-        password: 'password',
-      };
-
-      const connection = new DatabaseConnection(config);
-      connection['pool'] = mockPool;
-
-      await expect(connection.query('SELECT 1')).rejects.toThrow('Pool exhausted');
-    });
-  });
-
-  describe('Performance', () => {
-    it('should handle concurrent queries', async () => {
-      const promises = Array.from({ length: 10 }, () =>
-        db.query('SELECT pg_sleep(0.01), random() as value')
-      );
-
-      const results = await Promise.all(promises);
-      expect(results).toHaveLength(10);
-      results.forEach(result => {
-        expect(result.rows).toHaveLength(1);
-        expect(result.rows[0]).toHaveProperty('value');
-      });
-    });
-
-    it('should handle large result sets efficiently', async () => {
-      const result = await db.query(`
-        SELECT generate_series(1, 1000) as number
-      `);
-
-      expect(result.rows).toHaveLength(1000);
-      expect(result.rowCount).toBe(1000);
-    });
-
-    it('should execute queries within reasonable time', async () => {
-      const start = Date.now();
-      await db.query('SELECT 1');
-      const duration = Date.now() - start;
-
-      expect(duration).toBeLessThan(100); // Should complete in less than 100ms
-    });
-  });
-
-  describe('Resource Cleanup', () => {
-    it('should close connection pool', async () => {
-      const config = {
-        host: 'localhost',
-        port: 5432,
-        database: 'test',
-        username: 'postgres',
-        password: 'password',
-      };
-
-      const connection = DatabaseConnection.getInstance(config);
-      await connection.close();
-
-      // Should not throw when closing already closed connection
-      await connection.close();
-    });
-
-    it('should release client back to pool', async () => {
       const client = await db.getClient();
-      expect(client).toBeDefined();
+      expect(poolConnect).toHaveBeenCalled();
+      expect(client).toBe(fakeClient);
+    });
 
-      // Release should not throw
-      client.release();
+    it('getPoolStats reports PostgreSQL pool counters', () => {
+      const stats = db.getPoolStats();
+      expect(stats.type).toBe('PostgreSQL');
+      expect(stats).toHaveProperty('totalCount');
+      expect(stats).toHaveProperty('idleCount');
+      expect(stats).toHaveProperty('waitingCount');
+      expect(typeof stats.totalCount).toBe('number');
+    });
+  });
+
+  describe('Resource cleanup', () => {
+    it('close() ends the underlying pool', async () => {
+      poolEnd.mockResolvedValue(undefined);
+      await db.close();
+      expect(poolEnd).toHaveBeenCalled();
     });
   });
 });

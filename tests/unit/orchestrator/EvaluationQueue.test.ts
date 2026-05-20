@@ -1,405 +1,249 @@
 import { describe, it, expect, beforeEach, afterEach, jest } from '@jest/globals';
-import { EvaluationQueue } from '@/orchestrator/EvaluationQueue';
+import type { EvaluationQueue as EvaluationQueueType } from '@/orchestrator/EvaluationQueue';
+import type { QueueItem } from '@/types/orchestrator';
 
-// Mock dependencies
-jest.mock('@/utils/logger', () => ({
-  logger: {
-    info: jest.fn(),
-    warn: jest.fn(),
-    error: jest.fn(),
-    debug: jest.fn(),
-  },
+// Under this repo's native-ESM Jest setup, `jest.mock(path, factory)` does NOT
+// intercept static `import`s of the module under test. The ESM-correct API is
+// `jest.unstable_mockModule` combined with a dynamic `import()` performed AFTER
+// the mocks are registered. This both applies the mock and preserves the full
+// jest mock helper surface (.mock, mockResolvedValue, etc.).
+
+jest.unstable_mockModule('@/utils/logger', () => ({
+  logger: { info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() },
 }));
 
-jest.mock('@/database/models/Evaluation', () => ({
+// The constructor (via loadPendingEvaluations) calls findByStatus, and enqueue
+// calls create / updateStatus. Mock all of these so no real DB is touched.
+const mockCreate = jest.fn();
+const mockFindByStatus = jest.fn();
+const mockUpdateStatus = jest.fn();
+
+jest.unstable_mockModule('@/database/models/Evaluation', () => ({
   EvaluationModel: {
-    create: jest.fn(),
+    create: mockCreate,
+    findByStatus: mockFindByStatus,
+    updateStatus: mockUpdateStatus,
     findById: jest.fn(),
-    update: jest.fn(),
     delete: jest.fn(),
-    findMany: jest.fn(),
   },
 }));
+
+const { EvaluationQueue } = await import('@/orchestrator/EvaluationQueue');
+
+type NewItem = Omit<QueueItem, 'id' | 'createdAt' | 'retryCount'>;
+
+const makeItem = (overrides: Partial<NewItem> = {}): NewItem => ({
+  agentId: 'test-agent',
+  benchmarkId: 'test-benchmark',
+  configuration: {},
+  priority: 'medium',
+  maxRetries: 3,
+  ...overrides,
+});
 
 describe('EvaluationQueue', () => {
-  let queue: EvaluationQueue;
+  let queue: EvaluationQueueType;
 
   beforeEach(() => {
-    queue = new EvaluationQueue({
-      maxSize: 100,
-      concurrency: 5,
-      retryAttempts: 3,
-      retryDelay: 1000,
-      priorityLevels: ['low', 'medium', 'high', 'critical'],
-    });
+    // config has resetMocks/clearMocks, so (re)install implementations each test.
+    mockCreate.mockImplementation(async (data: any) => ({
+      id: 'db-id',
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      ...data,
+    }));
+    mockFindByStatus.mockResolvedValue({ evaluations: [], total: 0 });
+    mockUpdateStatus.mockResolvedValue(true);
 
-    // Mock console methods to reduce noise
-    jest.spyOn(console, 'log').mockImplementation();
-    jest.spyOn(console, 'warn').mockImplementation();
-    jest.spyOn(console, 'error').mockImplementation();
+    // REAL API: constructor takes a maxConcurrent NUMBER (default 5).
+    queue = new EvaluationQueue(5);
   });
 
   afterEach(() => {
-    jest.restoreAllMocks();
+    // Stop the internal processing loop so it does not keep the test alive.
     queue.stop();
   });
 
   describe('Initialization', () => {
-    it('should initialize with default configuration', () => {
+    it('should construct with a numeric maxConcurrent and expose the real API', () => {
       expect(queue).toBeDefined();
-      expect(typeof queue.add).toBe('function');
-      expect(typeof queue.start).toBe('function');
-      expect(typeof queue.stop).toBe('function');
+      expect(typeof queue.enqueue).toBe('function');
+      expect(typeof queue.complete).toBe('function');
+      expect(typeof queue.cancel).toBe('function');
       expect(typeof queue.getStatus).toBe('function');
+      expect(typeof queue.stop).toBe('function');
     });
 
-    it('should accept custom configuration', () => {
-      const customQueue = new EvaluationQueue({
-        maxSize: 200,
-        concurrency: 10,
-        retryAttempts: 5,
-        retryDelay: 2000,
-        priorityLevels: ['low', 'medium', 'high', 'critical', 'urgent'],
-      });
+    it('should default maxConcurrent to 5 and report it via getStatus', async () => {
+      const status = await queue.getStatus();
+      expect(status.maxConcurrent).toBe(5);
+      expect(status.processing).toBe(true);
+    });
 
-      expect(customQueue).toBeDefined();
+    it('should honor a custom maxConcurrent', async () => {
+      const customQueue = new EvaluationQueue(10);
+      const status = await customQueue.getStatus();
+      expect(status.maxConcurrent).toBe(10);
       customQueue.stop();
     });
 
-    it('should start and stop without throwing', () => {
-      expect(() => {
-        queue.start();
-        queue.stop();
-      }).not.toThrow();
+    it('should attempt to load pending evaluations from the database on construction', () => {
+      // The constructor kicks off startProcessing -> loadPendingEvaluations.
+      expect(mockFindByStatus).toHaveBeenCalledWith('pending', 1, 100);
     });
   });
 
-  describe('Queue Operations', () => {
-    beforeEach(() => {
-      queue.start();
+  describe('enqueue', () => {
+    it('should return a QueueItem with a generated id, createdAt and retryCount', async () => {
+      const item = await queue.enqueue(makeItem());
+
+      expect(item).toBeDefined();
+      expect(typeof item.id).toBe('string');
+      expect(item.id.length).toBeGreaterThan(0);
+      expect(item.createdAt).toBeInstanceOf(Date);
+      expect(item.retryCount).toBe(0);
+      expect(item.agentId).toBe('test-agent');
+      expect(item.benchmarkId).toBe('test-benchmark');
+      expect(item.priority).toBe('medium');
     });
 
-    it('should add evaluation to queue without throwing', async () => {
-      const evaluation = {
-        id: 'test-eval-123',
-        agentId: 'test-agent-456',
-        benchmarkId: 'test-benchmark-789',
-        priority: 'medium',
-        data: { timeout: 300000 },
-      };
-
-      await expect(queue.add(evaluation)).resolves.not.toThrow();
+    it('should generate unique ids for each enqueued item', async () => {
+      const a = await queue.enqueue(makeItem({ agentId: 'a' }));
+      const b = await queue.enqueue(makeItem({ agentId: 'b' }));
+      expect(a.id).not.toBe(b.id);
     });
 
-    it('should add multiple evaluations to queue', async () => {
-      const evaluations = Array(5).fill(null).map((_, i) => ({
-        id: `test-eval-${i}`,
-        agentId: `test-agent-${i}`,
-        benchmarkId: `test-benchmark-${i}`,
-        priority: 'medium' as const,
-        data: { timeout: 300000 },
-      }));
+    it('should persist the queued evaluation via EvaluationModel.create', async () => {
+      await queue.enqueue(makeItem({ priority: 'high' }));
 
-      const promises = evaluations.map(evaluation => queue.add(evaluation));
-      await expect(Promise.all(promises)).resolves.not.toThrow();
+      expect(mockCreate).toHaveBeenCalled();
+      const arg = mockCreate.mock.calls[0][0] as any;
+      expect(arg.agentId).toBe('test-agent');
+      expect(arg.benchmarkId).toBe('test-benchmark');
+      expect(arg.status).toBe('pending');
     });
 
-    it('should handle queue overflow gracefully', async () => {
-      const smallQueue = new EvaluationQueue({ maxSize: 2 });
-      smallQueue.start();
+    it('should emit a "queued" event carrying the new item', async () => {
+      const listener = jest.fn();
+      queue.on('queued', listener);
 
-      const evaluation = {
-        id: 'overflow-test',
-        agentId: 'test-agent',
-        benchmarkId: 'test-benchmark',
-        priority: 'low' as const,
-        data: {},
-      };
+      const item = await queue.enqueue(makeItem());
 
-      // Add evaluations up to and beyond max size
-      await smallQueue.add({ ...evaluation, id: 'eval-1' });
-      await smallQueue.add({ ...evaluation, id: 'eval-2' });
-      await expect(smallQueue.add({ ...evaluation, id: 'eval-3' }))
-        .resolves.not.toThrow(); // Should handle gracefully
-
-      smallQueue.stop();
+      expect(listener).toHaveBeenCalledTimes(1);
+      const emitted = listener.mock.calls[0][0] as QueueItem;
+      expect(emitted.id).toBe(item.id);
     });
   });
 
-  describe('Priority Handling', () => {
-    beforeEach(() => {
-      queue.start();
+  describe('Priority ordering (observable behavior)', () => {
+    it('should order higher-priority items ahead of lower-priority ones in the queue', async () => {
+      // maxConcurrent 0 keeps everything queued (processNext early-returns),
+      // so we can observe ordering through getQueuePosition without items
+      // being dequeued for processing.
+      const idleQueue = new EvaluationQueue(0);
+
+      const low = await idleQueue.enqueue(makeItem({ priority: 'low' }));
+      const critical = await idleQueue.enqueue(makeItem({ priority: 'critical' }));
+      const medium = await idleQueue.enqueue(makeItem({ priority: 'medium' }));
+
+      // critical (0) should come before medium (2) which comes before low (3).
+      const criticalPos = await idleQueue.getQueuePosition(critical.id);
+      const mediumPos = await idleQueue.getQueuePosition(medium.id);
+      const lowPos = await idleQueue.getQueuePosition(low.id);
+
+      expect(criticalPos).toBeLessThan(mediumPos);
+      expect(mediumPos).toBeLessThan(lowPos);
+
+      idleQueue.stop();
     });
 
-    it('should handle different priority levels', async () => {
-      const priorities = ['low', 'medium', 'high', 'critical'] as const;
+    it('should report queue length growing as items are enqueued', async () => {
+      const idleQueue = new EvaluationQueue(0);
 
-      for (const priority of priorities) {
-        const evaluation = {
-          id: `priority-test-${priority}`,
-          agentId: 'test-agent',
-          benchmarkId: 'test-benchmark',
-          priority,
-          data: {},
-        };
+      expect(await idleQueue.getLength()).toBe(0);
+      await idleQueue.enqueue(makeItem());
+      await idleQueue.enqueue(makeItem());
+      expect(await idleQueue.getLength()).toBe(2);
 
-        await expect(queue.add(evaluation)).resolves.not.toThrow();
-      }
-    });
-
-    it('should handle invalid priority levels', async () => {
-      const evaluation = {
-        id: 'invalid-priority-test',
-        agentId: 'test-agent',
-        benchmarkId: 'test-benchmark',
-        priority: 'invalid' as any,
-        data: {},
-      };
-
-      await expect(queue.add(evaluation)).resolves.not.toThrow();
-    });
-
-    it('should handle missing priority', async () => {
-      const evaluation = {
-        id: 'no-priority-test',
-        agentId: 'test-agent',
-        benchmarkId: 'test-benchmark',
-        priority: undefined as any,
-        data: {},
-      };
-
-      await expect(queue.add(evaluation)).resolves.not.toThrow();
+      idleQueue.stop();
     });
   });
 
-  describe('Processing Operations', () => {
-    beforeEach(() => {
-      queue.start();
+  describe('getStatus / metrics', () => {
+    it('should report queued items via getStatus', async () => {
+      const idleQueue = new EvaluationQueue(0);
+      await idleQueue.enqueue(makeItem({ priority: 'high' }));
+
+      const status = await idleQueue.getStatus();
+      expect(status.queueLength).toBe(1);
+      expect(status.running).toBe(0);
+      expect(Array.isArray(status.queueItems)).toBe(true);
+      expect(status.queueItems[0].priority).toBe('high');
+
+      idleQueue.stop();
     });
 
-    it('should process evaluations without throwing', async () => {
-      const evaluation = {
-        id: 'process-test',
-        agentId: 'test-agent',
-        benchmarkId: 'test-benchmark',
-        priority: 'medium' as const,
-        data: { timeout: 1000 },
-      };
-
-      await queue.add(evaluation);
-
-      // Wait a moment for processing to potentially start
-      await new Promise(resolve => setTimeout(resolve, 10));
-
-      // Processing should not cause errors
-      expect(queue.getStatus()).toBeDefined();
-    });
-
-    it('should handle concurrent processing', async () => {
-      const evaluations = Array(10).fill(null).map((_, i) => ({
-        id: `concurrent-${i}`,
-        agentId: 'test-agent',
-        benchmarkId: 'test-benchmark',
-        priority: 'medium' as const,
-        data: { timeout: 1000 },
-      }));
-
-      const addPromises = evaluations.map(evaluation => queue.add(evaluation));
-      await Promise.all(addPromises);
-
-      // Wait for potential processing
-      await new Promise(resolve => setTimeout(resolve, 50));
-
-      expect(queue.getStatus()).toBeDefined();
+    it('should expose a healthCheck snapshot', async () => {
+      const health = await queue.healthCheck();
+      expect(health.status).toBe('healthy');
+      expect(typeof health.queueLength).toBe('number');
+      expect(health.maxConcurrent).toBe(5);
     });
   });
 
-  describe('Error Handling', () => {
-    beforeEach(() => {
-      queue.start();
+  describe('cancel / clear', () => {
+    it('should cancel a queued item and remove it from the queue', async () => {
+      const idleQueue = new EvaluationQueue(0);
+      const item = await idleQueue.enqueue(makeItem());
+
+      const cancelled = await idleQueue.cancel(item.id);
+      expect(cancelled).toBe(true);
+      expect(await idleQueue.getLength()).toBe(0);
+
+      idleQueue.stop();
     });
 
-    it('should handle invalid evaluation data', async () => {
-      const invalidEvaluations = [
-        null,
-        undefined,
-        {},
-        { id: '' },
-        { id: 'test' }, // Missing required fields
-        { id: 'test', agentId: null, benchmarkId: undefined },
-      ];
-
-      for (const evaluation of invalidEvaluations) {
-        await expect(queue.add(evaluation as any)).resolves.not.toThrow();
-      }
+    it('should return false when cancelling an unknown evaluation', async () => {
+      const result = await queue.cancel('does-not-exist');
+      expect(result).toBe(false);
     });
 
-    it('should handle processing errors gracefully', async () => {
-      const problematicEvaluation = {
-        id: 'error-test',
-        agentId: 'test-agent',
-        benchmarkId: 'test-benchmark',
-        priority: 'medium' as const,
-        data: { throw: true, timeout: 1000 },
-      };
+    it('should clear all queued items', async () => {
+      const idleQueue = new EvaluationQueue(0);
+      await idleQueue.enqueue(makeItem());
+      await idleQueue.enqueue(makeItem());
 
-      await queue.add(problematicEvaluation);
+      await idleQueue.clear();
+      expect(await idleQueue.getLength()).toBe(0);
 
-      // Wait for potential processing and error handling
-      await new Promise(resolve => setTimeout(resolve, 50));
-
-      expect(queue.getStatus()).toBeDefined();
-    });
-
-    it('should handle retry logic', async () => {
-      const flakyEvaluation = {
-        id: 'retry-test',
-        agentId: 'test-agent',
-        benchmarkId: 'test-benchmark',
-        priority: 'high' as const,
-        data: { flaky: true, timeout: 1000 },
-      };
-
-      await queue.add(flakyEvaluation);
-
-      // Wait for potential retries
-      await new Promise(resolve => setTimeout(resolve, 200));
-
-      expect(queue.getStatus()).toBeDefined();
+      idleQueue.stop();
     });
   });
 
-  describe('Status and Monitoring', () => {
-    beforeEach(() => {
-      queue.start();
+  describe('Error handling', () => {
+    it('should propagate database errors from enqueue', async () => {
+      mockCreate.mockRejectedValueOnce(new Error('db down'));
+
+      await expect(queue.enqueue(makeItem())).rejects.toThrow('db down');
     });
 
-    it('should provide queue status', () => {
-      const status = queue.getStatus();
-      expect(status).toBeDefined();
-      expect(typeof status.size).toBe('number');
-      expect(typeof status.processing).toBe('number');
-      expect(typeof status.completed).toBe('number');
-      expect(typeof status.failed).toBe('number');
-    });
-
-    it('should track queue size accurately', async () => {
-      const initialStatus = queue.getStatus();
-      const initialSize = initialStatus.size;
-
-      const evaluation = {
-        id: 'size-test',
-        agentId: 'test-agent',
-        benchmarkId: 'test-benchmark',
-        priority: 'medium' as const,
-        data: {},
-      };
-
-      await queue.add(evaluation);
-      const newStatus = queue.getStatus();
-      expect(newStatus.size).toBeGreaterThanOrEqual(initialSize);
-    });
-
-    it('should handle status queries during processing', async () => {
-      const evaluation = {
-        id: 'status-during-process',
-        agentId: 'test-agent',
-        benchmarkId: 'test-benchmark',
-        priority: 'medium' as const,
-        data: { timeout: 1000 },
-      };
-
-      await queue.add(evaluation);
-
-      // Query status multiple times during potential processing
-      for (let i = 0; i < 5; i++) {
-        const status = queue.getStatus();
-        expect(status).toBeDefined();
-        await new Promise(resolve => setTimeout(resolve, 10));
-      }
+    it('should not throw when completing an unknown evaluation', async () => {
+      await expect(queue.complete('unknown-id', true)).resolves.toBeUndefined();
     });
   });
 
-  describe('Lifecycle Management', () => {
-    it('should handle start/stop cycles', () => {
-      for (let i = 0; i < 3; i++) {
-        expect(() => {
-          queue.start();
-          queue.stop();
-        }).not.toThrow();
-      }
-    });
-
-    it('should handle multiple start calls', () => {
-      queue.start();
-      queue.start();
-      queue.start();
-      expect(() => queue.start()).not.toThrow();
-    });
-
-    it('should handle multiple stop calls', () => {
-      queue.start();
+  describe('Lifecycle', () => {
+    it('should mark processing as false after stop()', async () => {
       queue.stop();
+      const status = await queue.getStatus();
+      expect(status.processing).toBe(false);
+    });
+
+    it('should emit a "stopped" event on stop()', () => {
+      const listener = jest.fn();
+      queue.on('stopped', listener);
       queue.stop();
-      queue.stop();
-      expect(() => queue.stop()).not.toThrow();
-    });
-
-    it('should handle operations when stopped', async () => {
-      // Don't start the queue
-      const evaluation = {
-        id: 'stopped-queue-test',
-        agentId: 'test-agent',
-        benchmarkId: 'test-benchmark',
-        priority: 'medium' as const,
-        data: {},
-      };
-
-      await expect(queue.add(evaluation)).resolves.not.toThrow();
-      expect(queue.getStatus()).toBeDefined();
-    });
-  });
-
-  describe('Concurrency Control', () => {
-    it('should respect concurrency limits', async () => {
-      const concurrentQueue = new EvaluationQueue({ concurrency: 2 });
-      concurrentQueue.start();
-
-      const evaluations = Array(10).fill(null).map((_, i) => ({
-        id: `concurrency-test-${i}`,
-        agentId: 'test-agent',
-        benchmarkId: 'test-benchmark',
-        priority: 'medium' as const,
-        data: { timeout: 5000 },
-      }));
-
-      const addPromises = evaluations.map(evaluation => concurrentQueue.add(evaluation));
-      await Promise.all(addPromises);
-
-      // Wait a moment to let processing potentially start
-      await new Promise(resolve => setTimeout(resolve, 100));
-
-      const status = concurrentQueue.getStatus();
-      expect(status).toBeDefined();
-      expect(status.processing).toBeLessThanOrEqual(2);
-
-      concurrentQueue.stop();
-    });
-
-    it('should handle concurrent queue operations', async () => {
-      queue.start();
-
-      const operations = Array(20).fill(null).map((_, i) =>
-        queue.add({
-          id: `concurrent-op-${i}`,
-          agentId: 'test-agent',
-          benchmarkId: 'test-benchmark',
-          priority: i % 2 === 0 ? 'high' : 'low' as const,
-          data: {},
-        })
-      );
-
-      await expect(Promise.all(operations)).resolves.not.toThrow();
+      expect(listener).toHaveBeenCalled();
     });
   });
 });

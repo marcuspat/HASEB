@@ -2,7 +2,7 @@ import { Agent, Evaluation, Benchmark, LeaderboardEntry, PerformanceMetrics } fr
 
 const API_BASE_URL = import.meta.env?.VITE_API_URL || 'http://localhost:3001/api';
 
-class ApiService {
+export class ApiService {
   private async request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
     const url = `${API_BASE_URL}${endpoint}`;
     const response = await fetch(url, {

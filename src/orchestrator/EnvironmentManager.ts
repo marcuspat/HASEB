@@ -682,6 +682,17 @@ CMD ["npm", "start"]
     }, 5 * 60 * 1000); // Every 5 minutes
   }
 
+  /**
+   * Stop the periodic stale-environment cleanup timer. This releases the
+   * interval handle created in the constructor so the process (or a test
+   * runner) is not kept alive by a dangling timer.
+   */
+  stopCleanup(): void {
+    if (this.cleanupInterval) {
+      clearInterval(this.cleanupInterval);
+    }
+  }
+
   private async cleanupStaleEnvironments(): Promise<void> {
     const staleThreshold = 2 * 60 * 60 * 1000; // 2 hours
     const now = Date.now();

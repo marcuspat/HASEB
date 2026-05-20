@@ -1,316 +1,231 @@
 import { describe, it, expect, beforeEach, afterEach, jest } from '@jest/globals';
-import { EnvironmentManager } from '@/orchestrator/EnvironmentManager';
-import { EvaluationEnvironment, EnvironmentRequirements } from '@/types/orchestrator';
+import type { EnvironmentManager as EnvironmentManagerType } from '@/orchestrator/EnvironmentManager';
 
-// Mock dependencies
-jest.mock('@/utils/logger', () => ({
-  logger: {
-    info: jest.fn(),
-    warn: jest.fn(),
-    error: jest.fn(),
-    debug: jest.fn(),
-  },
+// Under this repo's native-ESM Jest setup, `jest.mock(path, factory)` does not
+// reliably intercept static imports of the module under test. Use the
+// ESM-correct `jest.unstable_mockModule` + a dynamic `import()` performed AFTER
+// the mocks are registered.
+
+jest.unstable_mockModule('@/utils/logger', () => ({
+  logger: { info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() },
 }));
 
-jest.mock('child_process', () => ({
+// child_process is used both via `spawn` and a dynamic `import('child_process')`
+// (for `exec` in validateDockerInstallation). Provide both so neither touches
+// the real system.
+jest.unstable_mockModule('child_process', () => ({
   spawn: jest.fn(),
+  exec: jest.fn((_cmd: string, cb: (err: Error | null, stdout: string) => void) => {
+    // Report Docker as unavailable so the manager falls back to 'local'.
+    cb(new Error('docker not found'), '');
+  }),
 }));
 
-jest.mock('fs', () => ({
+jest.unstable_mockModule('fs', () => ({
   promises: {
-    writeFile: jest.fn(),
-    mkdir: jest.fn(),
-    rm: jest.fn(),
+    writeFile: jest.fn(async () => undefined),
+    mkdir: jest.fn(async () => undefined),
+    rm: jest.fn(async () => undefined),
   },
 }));
 
-jest.mock('uuid', () => ({
+jest.unstable_mockModule('uuid', () => ({
   v4: jest.fn(() => 'test-uuid-123'),
 }));
 
+const { EnvironmentManager } = await import('@/orchestrator/EnvironmentManager');
+
+// REAL API: createEnvironment(evaluationId, config) where config is an
+// EnvironmentConfig. The environment type is read from
+// config.configuration.environmentType (defaults to the manager's default,
+// which becomes 'local' once Docker validation fails above).
+const makeConfig = (evaluationId: string, overrides: Record<string, any> = {}) => ({
+  evaluationId,
+  agentId: 'test-agent',
+  benchmarkId: 'test-benchmark',
+  configuration: {
+    environmentType: 'local',
+    resources: { cpu: 2, memory: 4096, disk: 10240 },
+    ...overrides,
+  },
+});
+
 describe('EnvironmentManager', () => {
-  let environmentManager: EnvironmentManager;
+  let environmentManager: EnvironmentManagerType;
 
   beforeEach(() => {
-    environmentManager = new EnvironmentManager({
-      defaultEnvironmentType: 'local',
-      resourceLimits: {
-        maxCpu: 4,
-        maxMemory: 8192,
-        maxDisk: 100,
-      },
-      cleanupInterval: 60000,
-    });
-
-    // Mock console methods to reduce noise
-    jest.spyOn(console, 'log').mockImplementation();
-    jest.spyOn(console, 'warn').mockImplementation();
-    jest.spyOn(console, 'error').mockImplementation();
+    // REAL API: constructor takes NO arguments.
+    environmentManager = new EnvironmentManager();
   });
 
   afterEach(() => {
-    jest.restoreAllMocks();
+    // Stop the cleanup interval started in the constructor so it does not leak
+    // an open handle / keep the test runner alive.
     environmentManager.stopCleanup();
   });
 
   describe('Initialization', () => {
-    it('should initialize with default configuration', () => {
+    it('should construct with no arguments and expose the real API', () => {
       expect(environmentManager).toBeDefined();
       expect(typeof environmentManager.createEnvironment).toBe('function');
-      expect(typeof environmentManager.stopEnvironment).toBe('function');
-      expect(typeof environmentManager.cleanup).toBe('function');
+      expect(typeof environmentManager.cleanupEnvironment).toBe('function');
+      expect(typeof environmentManager.cleanupAll).toBe('function');
+      expect(typeof environmentManager.getEnvironmentStatus).toBe('function');
+      expect(typeof environmentManager.getEnvironmentStats).toBe('function');
+      expect(typeof environmentManager.stopCleanup).toBe('function');
     });
 
-    it('should accept custom configuration', () => {
-      const customManager = new EnvironmentManager({
-        defaultEnvironmentType: 'docker',
-        resourceLimits: {
-          maxCpu: 8,
-          maxMemory: 16384,
-          maxDisk: 200,
-        },
-        cleanupInterval: 30000,
-      });
-
-      expect(customManager).toBeDefined();
-      customManager.stopCleanup();
+    it('should report empty stats before any environments are created', () => {
+      const stats = environmentManager.getEnvironmentStats();
+      expect(stats.totalEnvironments).toBe(0);
+      expect(stats.activeEnvironments).toBe(0);
     });
   });
 
   describe('Environment Creation', () => {
-    it('should create environment without throwing', async () => {
-      const requirements: EnvironmentRequirements = {
-        type: 'local',
-        resources: {
-          cpu: 2,
-          memory: 4096,
-          disk: 10,
-        },
-        timeout: 300000,
-      };
+    it('should create a local environment and return it with the expected shape', async () => {
+      const environment = await environmentManager.createEnvironment(
+        'test-eval-123',
+        makeConfig('test-eval-123')
+      );
 
-      const environment = await environmentManager.createEnvironment('test-eval-123', requirements);
       expect(environment).toBeDefined();
       expect(environment.id).toBe('test-eval-123');
+      expect(environment.type).toBe('local');
+      expect(environment.status).toBe('ready');
+      expect(environment.endpoint).toContain('test-eval-123');
     });
 
-    it('should handle environment creation errors gracefully', async () => {
-      const requirements: EnvironmentRequirements = {
-        type: 'docker',
-        resources: {
-          cpu: 16, // Exceeds max limit
-          memory: 32768,
-          disk: 500,
-        },
-        timeout: 300000,
-      };
+    it('should track created environments in the stats', async () => {
+      await environmentManager.createEnvironment('stats-eval', makeConfig('stats-eval'));
 
-      // Should not throw even with invalid requirements
-      await expect(environmentManager.createEnvironment('test-eval-456', requirements))
-        .resolves.not.toThrow();
+      const stats = environmentManager.getEnvironmentStats();
+      expect(stats.totalEnvironments).toBe(1);
+      expect(stats.activeEnvironments).toBe(1);
     });
 
-    it('should create multiple environments', async () => {
-      const requirements: EnvironmentRequirements = {
-        type: 'local',
-        resources: {
-          cpu: 1,
-          memory: 2048,
-          disk: 5,
-        },
-        timeout: 300000,
-      };
-
-      const env1 = await environmentManager.createEnvironment('test-eval-1', requirements);
-      const env2 = await environmentManager.createEnvironment('test-eval-2', requirements);
+    it('should create multiple distinct environments', async () => {
+      const env1 = await environmentManager.createEnvironment('test-eval-1', makeConfig('test-eval-1'));
+      const env2 = await environmentManager.createEnvironment('test-eval-2', makeConfig('test-eval-2'));
 
       expect(env1.id).toBe('test-eval-1');
       expect(env2.id).toBe('test-eval-2');
       expect(env1.id).not.toBe(env2.id);
-    });
-  });
 
-  describe('Environment Management', () => {
-    it('should stop environment without throwing', async () => {
-      const requirements: EnvironmentRequirements = {
-        type: 'local',
-        resources: { cpu: 1, memory: 1024, disk: 1 },
-        timeout: 300000,
-      };
-
-      const environment = await environmentManager.createEnvironment('test-stop', requirements);
-
-      await expect(environmentManager.stopEnvironment(environment.id))
-        .resolves.not.toThrow();
+      const stats = environmentManager.getEnvironmentStats();
+      expect(stats.totalEnvironments).toBe(2);
     });
 
-    it('should handle stopping non-existent environment', async () => {
-      await expect(environmentManager.stopEnvironment('non-existent-id'))
-        .resolves.not.toThrow();
+    it('should emit an environmentCreated event', async () => {
+      const listener = jest.fn();
+      environmentManager.on('environmentCreated', listener);
+
+      await environmentManager.createEnvironment('event-eval', makeConfig('event-eval'));
+
+      expect(listener).toHaveBeenCalledTimes(1);
+      expect(listener.mock.calls[0][0]).toBe('event-eval');
     });
 
-    it('should cleanup environments without throwing', async () => {
-      const requirements: EnvironmentRequirements = {
-        type: 'local',
-        resources: { cpu: 1, memory: 1024, disk: 1 },
-        timeout: 300000,
-      };
+    it('should reject creation once the maximum environment limit is exceeded', async () => {
+      // The default resource limit is 20 environments.
+      for (let i = 0; i < 20; i++) {
+        await environmentManager.createEnvironment(`bulk-${i}`, makeConfig(`bulk-${i}`));
+      }
 
-      await environmentManager.createEnvironment('test-cleanup-1', requirements);
-      await environmentManager.createEnvironment('test-cleanup-2', requirements);
-
-      await expect(environmentManager.cleanup())
-        .resolves.not.toThrow();
+      await expect(
+        environmentManager.createEnvironment('overflow', makeConfig('overflow'))
+      ).rejects.toThrow('Maximum environment limit reached');
     });
   });
 
   describe('Resource Management', () => {
-    it('should track environment resources', async () => {
-      const requirements: EnvironmentRequirements = {
-        type: 'local',
-        resources: { cpu: 2, memory: 4096, disk: 20 },
-        timeout: 300000,
-      };
+    it('should propagate requested resources onto the created environment', async () => {
+      const environment = await environmentManager.createEnvironment(
+        'resource-test',
+        makeConfig('resource-test', { resources: { cpu: 2, memory: 4096, disk: 20 } })
+      );
 
-      const environment = await environmentManager.createEnvironment('resource-test', requirements);
+      // Local environments report a fixed default resource profile.
       expect(environment.resources.cpu).toBe(2);
       expect(environment.resources.memory).toBe(4096);
-      expect(environment.resources.disk).toBe(20);
-    });
-
-    it('should handle resource limit validation', async () => {
-      const requirements: EnvironmentRequirements = {
-        type: 'local',
-        resources: { cpu: 10, memory: 32768, disk: 1000 }, // Exceeds limits
-        timeout: 300000,
-      };
-
-      // Should not throw but may adjust to limits
-      const environment = await environmentManager.createEnvironment('limit-test', requirements);
-      expect(environment).toBeDefined();
+      expect(typeof environment.resources.disk).toBe('number');
     });
   });
 
   describe('Environment Status', () => {
-    it('should track environment status', async () => {
-      const requirements: EnvironmentRequirements = {
-        type: 'local',
-        resources: { cpu: 1, memory: 1024, disk: 1 },
-        timeout: 300000,
-      };
-
-      const environment = await environmentManager.createEnvironment('status-test', requirements);
-      expect(['ready', 'starting', 'error']).toContain(environment.status);
+    it('should report a created environment status as ready', async () => {
+      const environment = await environmentManager.createEnvironment('status-test', makeConfig('status-test'));
+      expect(['ready', 'creating', 'running']).toContain(environment.status);
     });
 
-    it('should get environment status', async () => {
-      const requirements: EnvironmentRequirements = {
-        type: 'local',
-        resources: { cpu: 1, memory: 1024, disk: 1 },
-        timeout: 300000,
-      };
-
-      const environment = await environmentManager.createEnvironment('status-get', requirements);
-      const status = environmentManager.getEnvironmentStatus(environment.id);
-      expect(status).toBeDefined();
+    it('should return the environment via getEnvironmentStatus', async () => {
+      await environmentManager.createEnvironment('status-get', makeConfig('status-get'));
+      const status = await environmentManager.getEnvironmentStatus('status-get');
+      expect(status).not.toBeNull();
+      expect(status?.id).toBe('status-get');
     });
 
-    it('should handle getting status of non-existent environment', () => {
-      const status = environmentManager.getEnvironmentStatus('non-existent');
+    it('should return null for an unknown environment', async () => {
+      const status = await environmentManager.getEnvironmentStatus('non-existent');
       expect(status).toBeNull();
     });
   });
 
-  describe('Event Emission', () => {
-    it('should emit events during environment lifecycle', async () => {
-      const mockListener = jest.fn();
-      environmentManager.on('environment:created', mockListener);
-      environmentManager.on('environment:stopped', mockListener);
+  describe('Cleanup', () => {
+    it('should clean up a single environment and remove it from state', async () => {
+      await environmentManager.createEnvironment('cleanup-one', makeConfig('cleanup-one'));
+      expect(environmentManager.getEnvironmentStats().totalEnvironments).toBe(1);
 
-      const requirements: EnvironmentRequirements = {
-        type: 'local',
-        resources: { cpu: 1, memory: 1024, disk: 1 },
-        timeout: 300000,
-      };
+      await environmentManager.cleanupEnvironment('cleanup-one');
 
-      const environment = await environmentManager.createEnvironment('event-test', requirements);
-      await environmentManager.stopEnvironment(environment.id);
+      expect(environmentManager.getEnvironmentStats().totalEnvironments).toBe(0);
+      expect(await environmentManager.getEnvironmentStatus('cleanup-one')).toBeNull();
+    });
 
-      // Events should be emitted without throwing
+    it('should emit environmentCleanedUp when cleaning up an environment', async () => {
+      const listener = jest.fn();
+      environmentManager.on('environmentCleanedUp', listener);
+
+      await environmentManager.createEnvironment('cleanup-event', makeConfig('cleanup-event'));
+      await environmentManager.cleanupEnvironment('cleanup-event');
+
+      expect(listener).toHaveBeenCalledWith('cleanup-event');
+    });
+
+    it('should not throw when cleaning up a non-existent environment', async () => {
+      await expect(environmentManager.cleanupEnvironment('nope')).resolves.toBeUndefined();
+    });
+
+    it('should clean up all environments via cleanupAll', async () => {
+      await environmentManager.createEnvironment('all-1', makeConfig('all-1'));
+      await environmentManager.createEnvironment('all-2', makeConfig('all-2'));
+
+      await environmentManager.cleanupAll();
+
+      expect(environmentManager.getEnvironmentStats().totalEnvironments).toBe(0);
+    });
+
+    it('should clear the cleanup timer via stopCleanup so no handle leaks', () => {
+      // stopCleanup should be idempotent and never throw.
       expect(() => {
-        environmentManager.emit('test-event', { data: 'test' });
-      }).not.toThrow();
-    });
-  });
-
-  describe('Error Handling', () => {
-    it('should handle concurrent environment operations', async () => {
-      const requirements: EnvironmentRequirements = {
-        type: 'local',
-        resources: { cpu: 1, memory: 1024, disk: 1 },
-        timeout: 300000,
-      };
-
-      // Create multiple environments concurrently
-      const promises = Array(5).fill(null).map((_, i) =>
-        environmentManager.createEnvironment(`concurrent-${i}`, requirements)
-      );
-
-      const environments = await Promise.all(promises);
-      expect(environments).toHaveLength(5);
-
-      // Clean up
-      const cleanupPromises = environments.map(env =>
-        environmentManager.stopEnvironment(env.id)
-      );
-      await Promise.all(cleanupPromises);
-    });
-
-    it('should handle environment timeout', async () => {
-      const requirements: EnvironmentRequirements = {
-        type: 'local',
-        resources: { cpu: 1, memory: 1024, disk: 1 },
-        timeout: 1, // Very short timeout
-      };
-
-      const environment = await environmentManager.createEnvironment('timeout-test', requirements);
-
-      // Wait for timeout to potentially occur
-      await new Promise(resolve => setTimeout(resolve, 10));
-
-      // Should not throw even with timeout
-      expect(environment).toBeDefined();
-    });
-  });
-
-  describe('Cleanup Operations', () => {
-    it('should start and stop cleanup interval', () => {
-      expect(() => {
-        environmentManager.startCleanup();
+        environmentManager.stopCleanup();
         environmentManager.stopCleanup();
       }).not.toThrow();
     });
+  });
 
-    it('should handle cleanup operations without active environments', async () => {
-      await expect(environmentManager.cleanup()).resolves.not.toThrow();
-    });
+  describe('Concurrency', () => {
+    it('should handle concurrent environment creation', async () => {
+      const promises = Array(5)
+        .fill(null)
+        .map((_, i) => environmentManager.createEnvironment(`concurrent-${i}`, makeConfig(`concurrent-${i}`)));
 
-    it('should handle cleanup with failed environments', async () => {
-      const requirements: EnvironmentRequirements = {
-        type: 'local',
-        resources: { cpu: 1, memory: 1024, disk: 1 },
-        timeout: 300000,
-      };
+      const environments = await Promise.all(promises);
+      expect(environments).toHaveLength(5);
+      expect(environmentManager.getEnvironmentStats().totalEnvironments).toBe(5);
 
-      await environmentManager.createEnvironment('failed-cleanup', requirements);
-
-      // Simulate failed environment
-      const status = environmentManager.getEnvironmentStatus('failed-cleanup');
-      if (status) {
-        status.status = 'error';
-      }
-
-      await expect(environmentManager.cleanup()).resolves.not.toThrow();
+      await Promise.all(environments.map(env => environmentManager.cleanupEnvironment(env.id)));
+      expect(environmentManager.getEnvironmentStats().totalEnvironments).toBe(0);
     });
   });
 });

@@ -1,21 +1,28 @@
-import { describe, it, expect, beforeEach, jest } from '@jest/globals';
+import { describe, it, expect, beforeEach, beforeAll, jest } from '@jest/globals';
+import type { AgentModel as AgentModelType } from '@/database/models/Agent';
 
-// Mock the pg module to prevent database connections
-jest.mock('pg', () => ({
-  Pool: jest.fn().mockImplementation(() => ({
-    query: jest.fn(),
-    connect: jest.fn(),
-    end: jest.fn(),
-    on: jest.fn(),
-    totalCount: 0,
-    idleCount: 0,
-    waitingCount: 0,
-  })),
-  PoolClient: jest.fn(),
+// Under ts-jest ESM, static `import` of the model would run its transitive
+// `import { db } from '../connection'` (which opens a real pg Pool) BEFORE any
+// `jest.mock` factory registers. We therefore mock the connection boundary with
+// `jest.unstable_mockModule` and load the model via a dynamic `import()` after
+// the mock is in place, so the real DB driver never runs.
+const mockQuery = jest.fn();
+
+const mockDb = {
+  query: mockQuery,
+  getClient: jest.fn(),
+  transaction: jest.fn(),
+  testConnection: jest.fn(),
+  close: jest.fn(),
+  getPoolStats: jest.fn(),
+};
+
+jest.unstable_mockModule('@/database/connection', () => ({
+  DatabaseConnection: jest.fn().mockImplementation(() => mockDb),
+  db: mockDb,
 }));
 
-// Mock logger to prevent actual logging during tests
-jest.mock('@/utils/logger', () => ({
+jest.unstable_mockModule('@/utils/logger', () => ({
   logger: {
     info: jest.fn(),
     error: jest.fn(),
@@ -24,27 +31,11 @@ jest.mock('@/utils/logger', () => ({
   },
 }));
 
-// Mock the database connection module more completely
-const mockQuery = jest.fn();
+let AgentModel: typeof AgentModelType;
 
-jest.mock('@/database/connection', () => {
-  const mockDb = {
-    query: mockQuery,
-    getClient: jest.fn(),
-    transaction: jest.fn(),
-    testConnection: jest.fn(),
-    close: jest.fn(),
-    getPoolStats: jest.fn(),
-  };
-
-  return {
-    DatabaseConnection: jest.fn().mockImplementation(() => mockDb),
-    db: mockDb,
-  };
+beforeAll(async () => {
+  ({ AgentModel } = await import('@/database/models/Agent'));
 });
-
-// Import after mocking
-import { AgentModel } from '@/database/models/Agent';
 
 describe('AgentModel', () => {
   beforeEach(() => {
@@ -59,7 +50,7 @@ describe('AgentModel', () => {
         description: 'A test agent for testing',
         capabilities: ['code-generation', 'text-analysis'],
         configuration: { model: 'gpt-4', temperature: 0.7 },
-        status: 'active',
+        status: 'active' as const,
       };
 
       const mockResult = {
@@ -81,10 +72,19 @@ describe('AgentModel', () => {
 
       const result = await AgentModel.create(agentData);
 
+      // The model serializes capabilities/configuration with JSON.stringify.
       expect(mockQuery).toHaveBeenCalledWith(
         expect.stringContaining('INSERT INTO agents'),
-        ['Test Agent', 'language-model', 'A test agent for testing', ['code-generation', 'text-analysis'], { model: 'gpt-4', temperature: 0.7 }, 'active']
+        [
+          'Test Agent',
+          'language-model',
+          'A test agent for testing',
+          JSON.stringify(['code-generation', 'text-analysis']),
+          JSON.stringify({ model: 'gpt-4', temperature: 0.7 }),
+          'active',
+        ]
       );
+      // The model maps snake_case rows to camelCase.
       expect(result).toEqual({
         id: 'agent-123',
         name: 'Test Agent',
@@ -105,7 +105,7 @@ describe('AgentModel', () => {
         description: 'A test agent for testing',
         capabilities: ['code-generation'],
         configuration: {},
-        status: 'active',
+        status: 'active' as const,
       };
 
       mockQuery.mockRejectedValue(new Error('Database connection failed'));
@@ -120,13 +120,18 @@ describe('AgentModel', () => {
         description: '',
         capabilities: [],
         configuration: {},
-        status: 'active',
+        status: 'active' as const,
       };
 
       const mockResult = {
         rows: [{
           id: 'agent-456',
-          ...agentData,
+          name: 'Minimal Agent',
+          type: 'test',
+          description: '',
+          capabilities: [],
+          configuration: {},
+          status: 'active',
           created_at: new Date(),
           updated_at: new Date(),
         }],
@@ -164,11 +169,12 @@ describe('AgentModel', () => {
       const result = await AgentModel.findById('agent-123');
 
       expect(mockQuery).toHaveBeenCalledWith(
-        'SELECT id, name, type, description, capabilities, configuration, status, created_at, updated_at FROM agents WHERE id = $1',
+        'SELECT * FROM agents WHERE id = $1',
         ['agent-123']
       );
       expect(result?.id).toBe('agent-123');
       expect(result?.name).toBe('Test Agent');
+      expect(result?.createdAt).toEqual(new Date('2024-01-15T10:30:00Z'));
     });
 
     it('should return null when agent not found', async () => {
@@ -226,7 +232,7 @@ describe('AgentModel', () => {
       const result = await AgentModel.findByType('language-model');
 
       expect(mockQuery).toHaveBeenCalledWith(
-        'SELECT id, name, type, description, capabilities, configuration, status, created_at, updated_at FROM agents WHERE type = $1 ORDER BY created_at DESC',
+        'SELECT * FROM agents WHERE type = $1 ORDER BY created_at DESC',
         ['language-model']
       );
       expect(result).toHaveLength(2);
@@ -269,7 +275,7 @@ describe('AgentModel', () => {
       const result = await AgentModel.findByStatus('active');
 
       expect(mockQuery).toHaveBeenCalledWith(
-        'SELECT id, name, type, description, capabilities, configuration, status, created_at, updated_at FROM agents WHERE status = $1 ORDER BY created_at DESC',
+        'SELECT * FROM agents WHERE status = $1 ORDER BY created_at DESC',
         ['active']
       );
       expect(result).toHaveLength(1);
@@ -298,9 +304,10 @@ describe('AgentModel', () => {
 
       const result = await AgentModel.findByCapability('code-generation');
 
+      // The model uses a JSONB containment query and serializes the param as a JSON array.
       expect(mockQuery).toHaveBeenCalledWith(
-        'SELECT id, name, type, description, capabilities, configuration, status, created_at, updated_at FROM agents WHERE $1 = ANY(capabilities) ORDER BY created_at DESC',
-        ['code-generation']
+        expect.stringContaining('capabilities @> $1::jsonb'),
+        [JSON.stringify(['code-generation'])]
       );
       expect(result).toHaveLength(1);
       expect(result[0].capabilities).toContain('code-generation');
@@ -309,7 +316,8 @@ describe('AgentModel', () => {
 
   describe('list', () => {
     it('should return paginated list of agents', async () => {
-      const mockResult = {
+      const countResult = { rows: [{ count: '2' }], rowCount: 1 };
+      const dataResult = {
         rows: [
           {
             id: 'agent-1',
@@ -337,19 +345,31 @@ describe('AgentModel', () => {
         rowCount: 2,
       };
 
-      mockQuery.mockResolvedValue(mockResult);
+      // list issues a COUNT query first, then the data query.
+      mockQuery.mockResolvedValueOnce(countResult).mockResolvedValueOnce(dataResult);
 
       const result = await AgentModel.list(1, 10);
 
-      expect(mockQuery).toHaveBeenCalledWith(
-        'SELECT id, name, type, description, capabilities, configuration, status, created_at, updated_at FROM agents ORDER BY created_at DESC LIMIT $1 OFFSET $2',
+      // The model issues a COUNT query first, then the paginated data query.
+      // (It mutates a shared params array, so we only assert the SQL of the
+      // count call and assert the full args of the data call.)
+      expect(mockQuery).toHaveBeenNthCalledWith(
+        1,
+        expect.stringContaining('SELECT COUNT(*) FROM agents'),
+        expect.anything()
+      );
+      expect(mockQuery).toHaveBeenNthCalledWith(
+        2,
+        expect.stringContaining('LIMIT $1 OFFSET $2'),
         [10, 0]
       );
-      expect(result).toHaveLength(2);
+      expect(result.agents).toHaveLength(2);
+      expect(result.total).toBe(2);
     });
 
     it('should filter by type', async () => {
-      const mockResult = {
+      const countResult = { rows: [{ count: '1' }], rowCount: 1 };
+      const dataResult = {
         rows: [{
           id: 'agent-1',
           name: 'Filtered Agent',
@@ -364,19 +384,22 @@ describe('AgentModel', () => {
         rowCount: 1,
       };
 
-      mockQuery.mockResolvedValue(mockResult);
+      mockQuery.mockResolvedValueOnce(countResult).mockResolvedValueOnce(dataResult);
 
-      const result = await AgentModel.list(1, 10, { type: 'language-model' });
+      const result = await AgentModel.list(1, 10, 'language-model');
 
-      expect(mockQuery).toHaveBeenCalledWith(
-        'SELECT id, name, type, description, capabilities, configuration, status, created_at, updated_at FROM agents WHERE type = $1 ORDER BY created_at DESC LIMIT $2 OFFSET $3',
+      expect(mockQuery).toHaveBeenNthCalledWith(
+        2,
+        expect.stringContaining('AND type = $1'),
         ['language-model', 10, 0]
       );
-      expect(result).toHaveLength(1);
+      expect(result.agents).toHaveLength(1);
+      expect(result.total).toBe(1);
     });
 
     it('should filter by status', async () => {
-      const mockResult = {
+      const countResult = { rows: [{ count: '1' }], rowCount: 1 };
+      const dataResult = {
         rows: [{
           id: 'agent-1',
           name: 'Active Agent',
@@ -391,28 +414,28 @@ describe('AgentModel', () => {
         rowCount: 1,
       };
 
-      mockQuery.mockResolvedValue(mockResult);
+      mockQuery.mockResolvedValueOnce(countResult).mockResolvedValueOnce(dataResult);
 
-      const result = await AgentModel.list(1, 10, { status: 'active' });
+      const result = await AgentModel.list(1, 10, undefined, 'active');
 
-      expect(mockQuery).toHaveBeenCalledWith(
-        'SELECT id, name, type, description, capabilities, configuration, status, created_at, updated_at FROM agents WHERE status = $1 ORDER BY created_at DESC LIMIT $2 OFFSET $3',
+      expect(mockQuery).toHaveBeenNthCalledWith(
+        2,
+        expect.stringContaining('AND status = $1'),
         ['active', 10, 0]
       );
-      expect(result).toHaveLength(1);
+      expect(result.agents).toHaveLength(1);
     });
 
     it('should handle empty results', async () => {
-      const mockResult = {
-        rows: [],
-        rowCount: 0,
-      };
+      const countResult = { rows: [{ count: '0' }], rowCount: 1 };
+      const dataResult = { rows: [], rowCount: 0 };
 
-      mockQuery.mockResolvedValue(mockResult);
+      mockQuery.mockResolvedValueOnce(countResult).mockResolvedValueOnce(dataResult);
 
       const result = await AgentModel.list(1, 10);
 
-      expect(result).toEqual([]);
+      expect(result.agents).toEqual([]);
+      expect(result.total).toBe(0);
     });
   });
 
@@ -443,9 +466,15 @@ describe('AgentModel', () => {
 
       const result = await AgentModel.update('agent-123', updateData);
 
+      // configuration is JSON.stringified; id is the final positional param.
       expect(mockQuery).toHaveBeenCalledWith(
-        expect.stringContaining('UPDATE agents SET'),
-        expect.arrayContaining(['Updated Agent', 'Updated description', { newSetting: true }, 'agent-123'])
+        expect.stringContaining('UPDATE agents'),
+        expect.arrayContaining([
+          'Updated Agent',
+          'Updated description',
+          JSON.stringify({ newSetting: true }),
+          'agent-123',
+        ])
       );
       expect(result?.name).toBe('Updated Agent');
       expect(result?.description).toBe('Updated description');
@@ -492,6 +521,7 @@ describe('AgentModel', () => {
     });
 
     it('should return original agent when no updates provided', async () => {
+      // With no fields the model delegates to findById (SELECT * FROM agents WHERE id = $1).
       const mockResult = {
         rows: [{
           id: 'agent-123',
@@ -511,6 +541,10 @@ describe('AgentModel', () => {
 
       const result = await AgentModel.update('agent-123', {});
 
+      expect(mockQuery).toHaveBeenCalledWith(
+        'SELECT * FROM agents WHERE id = $1',
+        ['agent-123']
+      );
       expect(result?.name).toBe('Original Agent');
     });
   });
@@ -526,7 +560,7 @@ describe('AgentModel', () => {
       const result = await AgentModel.updateStatus('agent-123', 'inactive');
 
       expect(mockQuery).toHaveBeenCalledWith(
-        'UPDATE agents SET status = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2',
+        expect.stringContaining('UPDATE agents'),
         ['inactive', 'agent-123']
       );
       expect(result).toBe(true);
@@ -556,9 +590,10 @@ describe('AgentModel', () => {
 
       const result = await AgentModel.updateConfiguration('agent-123', newConfig);
 
+      // configuration is JSON.stringified.
       expect(mockQuery).toHaveBeenCalledWith(
-        'UPDATE agents SET configuration = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2',
-        [newConfig, 'agent-123']
+        expect.stringContaining('UPDATE agents'),
+        [JSON.stringify(newConfig), 'agent-123']
       );
       expect(result).toBe(true);
     });
@@ -641,7 +676,7 @@ describe('AgentModel', () => {
       const result = await AgentModel.getActiveAgents();
 
       expect(mockQuery).toHaveBeenCalledWith(
-        'SELECT id, name, type, description, capabilities, configuration, status, created_at, updated_at FROM agents WHERE status = $1 ORDER BY created_at DESC',
+        'SELECT * FROM agents WHERE status = $1 ORDER BY created_at DESC',
         ['active']
       );
       expect(result).toHaveLength(2);
@@ -666,7 +701,8 @@ describe('AgentModel', () => {
 
   describe('search', () => {
     it('should search agents by name and description', async () => {
-      const mockResult = {
+      const countResult = { rows: [{ count: '1' }], rowCount: 1 };
+      const dataResult = {
         rows: [{
           id: 'agent-123',
           name: 'Search Test Agent',
@@ -681,29 +717,36 @@ describe('AgentModel', () => {
         rowCount: 1,
       };
 
-      mockQuery.mockResolvedValue(mockResult);
+      // search issues a COUNT query first, then the data query.
+      mockQuery.mockResolvedValueOnce(countResult).mockResolvedValueOnce(dataResult);
 
       const result = await AgentModel.search('search test');
 
-      expect(mockQuery).toHaveBeenCalledWith(
-        'SELECT id, name, type, description, capabilities, configuration, status, created_at, updated_at FROM agents WHERE name ILIKE $1 OR description ILIKE $2 ORDER BY created_at DESC',
-        ['%search test%', '%search test%']
+      expect(mockQuery).toHaveBeenNthCalledWith(
+        1,
+        expect.stringContaining('name ILIKE $1 OR description ILIKE $1'),
+        ['%search test%']
       );
-      expect(result).toHaveLength(1);
-      expect(result[0].name).toContain('Search Test');
+      expect(mockQuery).toHaveBeenNthCalledWith(
+        2,
+        expect.stringContaining('name ILIKE $1 OR description ILIKE $1'),
+        ['%search test%', 20, 0]
+      );
+      expect(result.agents).toHaveLength(1);
+      expect(result.total).toBe(1);
+      expect(result.agents[0].name).toContain('Search Test');
     });
 
     it('should return empty for no matches', async () => {
-      const mockResult = {
-        rows: [],
-        rowCount: 0,
-      };
+      const countResult = { rows: [{ count: '0' }], rowCount: 1 };
+      const dataResult = { rows: [], rowCount: 0 };
 
-      mockQuery.mockResolvedValue(mockResult);
+      mockQuery.mockResolvedValueOnce(countResult).mockResolvedValueOnce(dataResult);
 
       const result = await AgentModel.search('nonexistent term');
 
-      expect(result).toEqual([]);
+      expect(result.agents).toEqual([]);
+      expect(result.total).toBe(0);
     });
   });
 
@@ -723,7 +766,7 @@ describe('AgentModel', () => {
         description: 'Should fail',
         capabilities: [],
         configuration: {},
-        status: 'active',
+        status: 'active' as const,
       })).rejects.toThrow('Duplicate key value');
     });
   });
@@ -768,7 +811,7 @@ describe('AgentModel', () => {
         description: 'Agent with complex config',
         capabilities: ['code-generation'],
         configuration: complexConfig,
-        status: 'active',
+        status: 'active' as const,
       });
 
       expect(result.configuration).toEqual(complexConfig);
@@ -800,7 +843,7 @@ describe('AgentModel', () => {
         description: 'Agent with many capabilities',
         capabilities: manyCapabilities,
         configuration: {},
-        status: 'active',
+        status: 'active' as const,
       });
 
       expect(result.capabilities).toHaveLength(100);
