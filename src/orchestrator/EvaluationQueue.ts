@@ -100,7 +100,7 @@ export class EvaluationQueue extends EventEmitter {
           benchmarkId: evaluation.benchmarkId,
           configuration: evaluation.configuration,
           priority: 'medium', // Default priority for loaded items
-          createdAt: evaluation.createdAt,
+          createdAt: evaluation.createdAt ? new Date(evaluation.createdAt) : new Date(),
           retryCount: 0,
           maxRetries: 3
         };
@@ -134,10 +134,10 @@ export class EvaluationQueue extends EventEmitter {
     }
 
     // Start processing
-    await this.startProcessing(item);
+    await this.startItemProcessing(item);
   }
 
-  private async startProcessing(item: QueueItem): Promise<void> {
+  private async startItemProcessing(item: QueueItem): Promise<void> {
     try {
       // Add to running map
       this.running.set(item.id, item);

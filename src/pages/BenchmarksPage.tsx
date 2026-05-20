@@ -146,7 +146,7 @@ const BenchmarksPage: React.FC = () => {
               <div className="flex items-center space-x-3">
                 <span className={cn(
                   'px-2 py-1 text-xs font-medium rounded-full',
-                  getDifficultyColor(benchmark.difficulty)
+                  getDifficultyColor(benchmark.difficulty ?? '')
                 )}>
                   {benchmark.difficulty}
                 </span>
@@ -182,19 +182,19 @@ const BenchmarksPage: React.FC = () => {
             </div>
 
             {/* Progress Bar */}
-            {benchmark.totalTasks > 0 && (
+            {(benchmark.totalTasks ?? 0) > 0 && (
               <div className="mt-4 pt-4 border-t border-gray-200">
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-sm text-gray-600">Progress</span>
                   <span className="text-sm font-medium text-gray-900">
-                    {Math.round((benchmark.completedTasks / benchmark.totalTasks) * 100)}%
+                    {Math.round(((benchmark.completedTasks ?? 0) / (benchmark.totalTasks ?? 1)) * 100)}%
                   </span>
                 </div>
                 <div className="w-full bg-gray-200 rounded-full h-2">
                   <div
                     className="bg-primary-600 h-2 rounded-full transition-all duration-300"
                     style={{
-                      width: `${(benchmark.completedTasks / benchmark.totalTasks) * 100}%`
+                      width: `${((benchmark.completedTasks ?? 0) / (benchmark.totalTasks ?? 1)) * 100}%`
                     }}
                   />
                 </div>

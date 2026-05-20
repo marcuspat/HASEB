@@ -18,10 +18,13 @@ if (!JWT_SECRET) {
 }
 
 function generateToken(userId: string): string {
+  const options: jwt.SignOptions = {
+    expiresIn: JWT_EXPIRES_IN as jwt.SignOptions['expiresIn'],
+  };
   return jwt.sign(
     { userId },
     JWT_SECRET,
-    { expiresIn: JWT_EXPIRES_IN }
+    options
   );
 }
 
@@ -328,7 +331,7 @@ router.post('/refresh',
 router.get('/profile',
   authenticateToken,
   asyncHandler(async (req: express.Request, res: express.Response) => {
-    const user = req.user!;
+    const user = req.user as unknown as User;
 
     const response: ApiResponse = {
       success: true,
@@ -511,7 +514,7 @@ function authenticateToken(req: express.Request, res: express.Response, next: ex
   const token = authHeader && authHeader.split(' ')[1]; // Bearer TOKEN
 
   if (!token) {
-    return res.status(401).json({
+    res.status(401).json({
       success: false,
       error: {
         code: 'UNAUTHORIZED',
@@ -519,6 +522,7 @@ function authenticateToken(req: express.Request, res: express.Response, next: ex
         timestamp: new Date(),
       },
     });
+    return;
   }
 
   try {
@@ -553,7 +557,7 @@ function authenticateToken(req: express.Request, res: express.Response, next: ex
         });
       });
   } catch (error) {
-    return res.status(401).json({
+    res.status(401).json({
       success: false,
       error: {
         code: 'UNAUTHORIZED',
@@ -561,6 +565,7 @@ function authenticateToken(req: express.Request, res: express.Response, next: ex
         timestamp: new Date(),
       },
     });
+    return;
   }
 }
 
@@ -570,7 +575,7 @@ function requireRole(role: string) {
     const user = (req as any).user;
 
     if (!user) {
-      return res.status(401).json({
+      res.status(401).json({
         success: false,
         error: {
           code: 'UNAUTHORIZED',
@@ -578,10 +583,11 @@ function requireRole(role: string) {
           timestamp: new Date(),
         },
       });
+      return;
     }
 
     if (user.role !== role && user.role !== 'admin') {
-      return res.status(403).json({
+      res.status(403).json({
         success: false,
         error: {
           code: 'FORBIDDEN',
@@ -589,6 +595,7 @@ function requireRole(role: string) {
           timestamp: new Date(),
         },
       });
+      return;
     }
 
     next();

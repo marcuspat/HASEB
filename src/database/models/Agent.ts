@@ -61,7 +61,7 @@ export class AgentModel {
     const query = 'SELECT * FROM agents WHERE type = $1 ORDER BY created_at DESC';
     const result = await db.query(query, [type]);
 
-    return result.rows.map(row => ({
+    return result.rows.map((row: any) => ({
       id: row.id,
       name: row.name,
       type: row.type,
@@ -78,7 +78,7 @@ export class AgentModel {
     const query = 'SELECT * FROM agents WHERE status = $1 ORDER BY created_at DESC';
     const result = await db.query(query, [status]);
 
-    return result.rows.map(row => ({
+    return result.rows.map((row: any) => ({
       id: row.id,
       name: row.name,
       type: row.type,
@@ -99,7 +99,7 @@ export class AgentModel {
     `;
     const result = await db.query(query, [JSON.stringify([capability])]);
 
-    return result.rows.map(row => ({
+    return result.rows.map((row: any) => ({
       id: row.id,
       name: row.name,
       type: row.type,
@@ -142,7 +142,7 @@ export class AgentModel {
     params.push(limit, offset);
     const result = await db.query(query, params);
 
-    const agents = result.rows.map(row => ({
+    const agents = result.rows.map((row: any) => ({
       id: row.id,
       name: row.name,
       type: row.type,
@@ -253,7 +253,7 @@ export class AgentModel {
     const query = 'SELECT * FROM agents WHERE status = $1 ORDER BY created_at DESC';
     const result = await db.query(query, ['active']);
 
-    return result.rows.map(row => ({
+    return result.rows.map((row: any) => ({
       id: row.id,
       name: row.name,
       type: row.type,
@@ -287,7 +287,7 @@ export class AgentModel {
 
     const result = await db.query(searchQuery, [searchPattern, limit, offset]);
 
-    const agents = result.rows.map(row => ({
+    const agents = result.rows.map((row: any) => ({
       id: row.id,
       name: row.name,
       type: row.type,

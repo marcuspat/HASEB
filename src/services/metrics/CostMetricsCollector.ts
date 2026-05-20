@@ -454,6 +454,14 @@ export class CostMetricsCollector extends BaseMetricCollector {
     this.recordResourceUsage(data.type, data.amount, data.unit, data.cost);
   }
 
+  /**
+   * Record that a task has completed so that per-task cost figures can be
+   * derived. Emits the `task_completed` event handled by this collector.
+   */
+  public recordTaskCompletion(): void {
+    this.emit('task_completed');
+  }
+
   private handleTaskCompleted(): void {
     this.state.tasksCompleted++;
   }

@@ -58,6 +58,7 @@ interface RobustnessState {
 
 export class RobustnessMetricsCollector extends BaseMetricCollector {
   private state: RobustnessState;
+  private successfulRecoveries: number = 0;
 
   constructor(context: MetricsCollectionContext, config?: any) {
     super(context, config);

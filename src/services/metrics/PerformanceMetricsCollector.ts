@@ -60,16 +60,13 @@ export class PerformanceMetricsCollector extends BaseMetricCollector {
     try {
       const evaluation = await EvaluationModel.findById(this.context.evaluationId);
       if (evaluation && evaluation.metrics) {
-        // Initialize state from existing metrics
-        const perfMetrics = evaluation.metrics.performance;
-        if (perfMetrics) {
-          this.state.totalTasks = perfMetrics.tasksTotal || 0;
-          this.state.completedTasks = perfMetrics.tasksCompleted || 0;
-          this.state.successfulTasks = Math.floor(perfMetrics.taskSuccessRate * this.state.totalTasks) || 0;
-
-          if (perfMetrics.completionValidation) {
-            this.state.validationResults = perfMetrics.completionValidation;
-          }
+        // Initialize state from existing (flat) metrics. The persisted
+        // EvaluationMetrics shape only carries an aggregate success rate, so
+        // task counts are seeded from any existing totals tracked in state.
+        const successRate = evaluation.metrics.taskSuccessRate;
+        if (typeof successRate === 'number') {
+          this.state.successfulTasks =
+            Math.floor(successRate * this.state.totalTasks) || 0;
         }
       }
     } catch (error) {

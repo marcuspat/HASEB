@@ -209,7 +209,7 @@ export class MigrationManager {
 
   static async getAppliedMigrations(): Promise<string[]> {
     const result = await db.query('SELECT version FROM migrations ORDER BY version');
-    return result.rows.map(row => row.version);
+    return result.rows.map((row: any) => row.version);
   }
 
   static async applyMigration(migration: typeof migrations[0]): Promise<void> {

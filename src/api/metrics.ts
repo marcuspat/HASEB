@@ -1,6 +1,6 @@
 import express from 'express';
 import { asyncHandler } from '../middleware/errorHandler';
-import { validateRequest, extractPagination, commonSchemas } from '../middleware/validation';
+import { validateRequest, extractPagination, commonSchemas, ValidationSchema, ValidationRule } from '../middleware/validation';
 import { EvaluationModel } from '../database/models/Evaluation';
 import { logApiCall } from '../middleware/requestLogger';
 import { ApiResponse } from '../types/index';
@@ -37,7 +37,7 @@ const router = express.Router();
  */
 router.get('/evaluation/:evaluationId',
   logApiCall,
-  validateRequest(commonSchemas.id),
+  validateRequest(commonSchemas.id as ValidationSchema),
   asyncHandler(async (req: express.Request, res: express.Response) => {
     const { evaluationId } = req.params;
     const { includeHistory } = req.query;
@@ -105,7 +105,7 @@ router.get('/evaluation/:evaluationId',
 router.get('/agent/:agentId',
   logApiCall,
   validateRequest({
-    params: commonSchemas.id.params,
+    params: commonSchemas.id.params as Record<string, ValidationRule>,
     query: {
       days: { type: 'integer', min: 1, max: 365, required: false },
       benchmarkId: { type: 'string', format: 'uuid', required: false },
@@ -169,7 +169,7 @@ router.get('/agent/:agentId',
 router.get('/benchmark/:benchmarkId',
   logApiCall,
   validateRequest({
-    params: commonSchemas.id.params,
+    params: commonSchemas.id.params as Record<string, ValidationRule>,
     query: {
       days: { type: 'integer', min: 1, max: 365, required: false },
     },
@@ -579,6 +579,7 @@ router.get('/dashboard',
 
     // Get dashboard summary data
     const dashboardData = {
+      dateRange: { start: startDate, end: endDate },
       summary: {
         totalEvaluations: 150,
         activeEvaluations: 12,
@@ -647,7 +648,6 @@ router.get('/dashboard',
         timestamp: new Date(),
         requestId: req.headers['x-request-id'] as string,
         version: '1.0.0',
-        dateRange: { start: startDate, end: endDate },
       },
     };
 

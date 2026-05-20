@@ -1,6 +1,6 @@
 import express from 'express';
 import { asyncHandler } from '../middleware/errorHandler';
-import { validateRequest, extractPagination, commonSchemas } from '../middleware/validation';
+import { validateRequest, extractPagination, commonSchemas, ValidationSchema, ValidationRule } from '../middleware/validation';
 import { AgentModel } from '../database/models/Agent';
 import { logApiCall } from '../middleware/requestLogger';
 import { ApiResponse } from '../types/index';
@@ -140,7 +140,7 @@ router.get('/',
  */
 router.get('/search',
   logApiCall,
-  validateRequest(commonSchemas.search),
+  validateRequest(commonSchemas.search as ValidationSchema),
   asyncHandler(async (req: express.Request, res: express.Response) => {
     const { q } = req.query;
     const pagination = req.pagination!;
@@ -237,7 +237,7 @@ router.get('/types',
  */
 router.get('/:id',
   logApiCall,
-  validateRequest(commonSchemas.id),
+  validateRequest(commonSchemas.id as ValidationSchema),
   asyncHandler(async (req: express.Request, res: express.Response) => {
     const { id } = req.params;
     const agent = await AgentModel.findById(id);
@@ -312,7 +312,7 @@ router.get('/:id',
  */
 router.post('/',
   logApiCall,
-  validateRequest(commonSchemas.agentCreate),
+  validateRequest(commonSchemas.agentCreate as ValidationSchema),
   asyncHandler(async (req: express.Request, res: express.Response) => {
     const agentData = {
       ...req.body,
@@ -386,7 +386,7 @@ router.post('/',
 router.put('/:id',
   logApiCall,
   validateRequest({
-    params: commonSchemas.id.params,
+    params: commonSchemas.id.params as Record<string, ValidationRule>,
     body: {
       name: { type: 'string', min: 1, max: 255, required: false },
       type: { type: 'string', enum: ['swe', 'gui', 'general', 'orchestrator'], required: false },
@@ -461,7 +461,7 @@ router.put('/:id',
 router.patch('/:id/status',
   logApiCall,
   validateRequest({
-    params: commonSchemas.id.params,
+    params: commonSchemas.id.params as Record<string, ValidationRule>,
     body: {
       status: { type: 'string', enum: ['active', 'inactive', 'training', 'error'], required: true },
     },
@@ -520,7 +520,7 @@ router.patch('/:id/status',
  */
 router.delete('/:id',
   logApiCall,
-  validateRequest(commonSchemas.id),
+  validateRequest(commonSchemas.id as ValidationSchema),
   asyncHandler(async (req: express.Request, res: express.Response) => {
     const { id } = req.params;
     const success = await AgentModel.delete(id);

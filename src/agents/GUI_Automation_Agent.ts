@@ -539,7 +539,8 @@ export class GUI_Automation_Agent extends BaseExecutionAgent {
           success = await this.executeScroll(action.duration);
           break;
         case 'screenshot':
-          success = await this.takeScreenshot(action.screenshot);
+          await this.takeScreenshot(action.screenshot);
+          success = true;
           break;
         default:
           error = `Unknown action type: ${action.type}`;

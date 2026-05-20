@@ -53,7 +53,7 @@ export const useRealTimeUpdates = (enabled: boolean = true) => {
     // WebSocket connection for real-time updates
     const connectWebSocket = () => {
       try {
-        const wsUrl = import.meta.env.VITE_WS_URL || 'ws://localhost:3001';
+        const wsUrl = import.meta.env?.VITE_WS_URL || 'ws://localhost:3001';
         wsRef.current = new WebSocket(wsUrl);
 
         wsRef.current.onopen = () => {

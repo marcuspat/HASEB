@@ -3,9 +3,43 @@ import { EvaluationModel } from '../database/models/Evaluation';
 import { AgentModel } from '../database/models/Agent';
 import { BenchmarkModel } from '../database/models/Benchmark';
 import { logger } from '../utils/logger';
-import { validateRequest } from '../middleware/validation';
+import { validateRequest, ValidationSchema } from '../middleware/validation';
 
 const router = Router();
+
+// Request validation schemas for evaluation routes
+const createEvaluationSchema: ValidationSchema = {
+  body: {
+    agentId: { type: 'uuid', required: true },
+    benchmarkId: { type: 'uuid', required: true },
+    configuration: { type: 'object', required: false },
+    status: { type: 'string', required: false, enum: ['pending', 'running', 'completed', 'failed', 'cancelled'] },
+  },
+};
+
+const updateStatusSchema: ValidationSchema = {
+  body: {
+    status: { type: 'string', required: true, enum: ['pending', 'running', 'completed', 'failed', 'cancelled'] },
+    startTime: { type: 'string', required: false },
+    endTime: { type: 'string', required: false },
+  },
+};
+
+const addLogSchema: ValidationSchema = {
+  body: {
+    log: { type: 'string', required: true },
+  },
+};
+
+const updateMetricsSchema: ValidationSchema = {
+  body: {
+    performance: { type: 'object', required: false },
+    efficiency: { type: 'object', required: false },
+    cost: { type: 'object', required: false },
+    robustness: { type: 'object', required: false },
+    quality: { type: 'object', required: false },
+  },
+};
 
 // Get all evaluations with filtering
 /**
@@ -178,7 +212,7 @@ router.get('/:id', async (req: Request, res: Response) => {
  *       500:
  *         description: Server error
  */
-router.post('/', validateRequest, async (req: Request, res: Response) => {
+router.post('/', validateRequest(createEvaluationSchema), async (req: Request, res: Response) => {
   try {
     const { agentId, benchmarkId, configuration, status } = req.body;
 
@@ -212,7 +246,7 @@ router.post('/', validateRequest, async (req: Request, res: Response) => {
       status: status || 'pending',
       configuration: configuration || {},
       logs: [],
-      metrics: null,
+      metrics: undefined,
       startTime: new Date(),
       endTime: undefined
     });
@@ -275,7 +309,7 @@ router.post('/', validateRequest, async (req: Request, res: Response) => {
  *       500:
  *         description: Server error
  */
-router.patch('/:id/status', validateRequest, async (req: Request, res: Response) => {
+router.patch('/:id/status', validateRequest(updateStatusSchema), async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const { status, startTime, endTime } = req.body;
@@ -348,7 +382,7 @@ router.patch('/:id/status', validateRequest, async (req: Request, res: Response)
  *       500:
  *         description: Server error
  */
-router.post('/:id/logs', validateRequest, async (req: Request, res: Response) => {
+router.post('/:id/logs', validateRequest(addLogSchema), async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const { log } = req.body;
@@ -463,7 +497,7 @@ router.post('/:id/logs', validateRequest, async (req: Request, res: Response) =>
  *       500:
  *         description: Server error
  */
-router.put('/:id/metrics', validateRequest, async (req: Request, res: Response) => {
+router.put('/:id/metrics', validateRequest(updateMetricsSchema), async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const metrics = req.body;

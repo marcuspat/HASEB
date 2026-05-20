@@ -1,6 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import { logger } from '../utils/logger';
-import { ApiResponse, ApiError } from '../types/index';
+import { ApiResponse } from '../types/index';
 
 export class AppError extends Error {
   public statusCode: number;

@@ -1,4 +1,4 @@
-import { Pool, PoolClient, QueryResult } from 'pg';
+import { Pool, PoolClient, QueryResult, QueryResultRow } from 'pg';
 import sqlite3 from 'sqlite3';
 import { DatabaseConfig } from '../types/index';
 import { logger } from '../utils/logger';
@@ -66,7 +66,7 @@ export class DatabaseConnection {
     return DatabaseConnection.instance;
   }
 
-  public async query<T = any>(text: string, params?: any[]): Promise<any> {
+  public async query<T extends QueryResultRow = any>(text: string, params?: any[]): Promise<any> {
     const start = Date.now();
     try {
       if (this.isSqlite) {

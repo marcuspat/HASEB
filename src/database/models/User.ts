@@ -207,7 +207,7 @@ export class UserModel {
     params.push(limit, offset);
     const result = await db.query(query, params);
 
-    const users = result.rows.map(row => ({
+    const users = result.rows.map((row: any) => ({
       id: row.id,
       email: row.email,
       username: row.username,

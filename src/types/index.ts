@@ -4,9 +4,23 @@ export interface Agent {
   type: string;
   status: 'active' | 'idle' | 'busy' | 'error';
   capabilities: string[];
-  performance: PerformanceMetrics;
-  lastActive: string;
+  description?: string;
+  configuration?: Record<string, any>;
+  performance?: PerformanceMetrics;
+  lastActive?: string;
   createdAt: string;
+  updatedAt?: string;
+}
+
+export interface User {
+  id: string;
+  email: string;
+  username: string;
+  fullName: string;
+  role: 'admin' | 'user' | 'viewer';
+  isActive: boolean;
+  createdAt: string;
+  updatedAt?: string;
 }
 
 export interface Evaluation {
@@ -19,6 +33,8 @@ export interface Evaluation {
   configuration: Record<string, any>;
   logs: EvaluationLog[];
   metrics?: Partial<EvaluationMetrics>;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface EvaluationMetrics {
@@ -61,11 +77,16 @@ export interface Benchmark {
   name: string;
   type: 'swe-bench' | 'gaia' | 'osworld' | 'webarena' | 'agentbench';
   description: string;
-  totalTasks: number;
-  completedTasks: number;
-  difficulty: 'easy' | 'medium' | 'hard' | 'expert';
+  dataset?: string;
+  evaluationCriteria?: Record<string, any>;
+  configuration?: Record<string, any>;
+  totalTasks?: number;
+  completedTasks?: number;
+  difficulty?: 'easy' | 'medium' | 'hard' | 'expert';
   isActive: boolean;
   lastRun?: string;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface LeaderboardEntry {
@@ -113,6 +134,7 @@ export interface ApiResponse<T = any> {
   error?: {
     code: string;
     message: string;
+    details?: any;
     timestamp: Date;
   };
   metadata?: {

@@ -1,6 +1,6 @@
 import express from 'express';
 import { asyncHandler } from '../middleware/errorHandler';
-import { validateRequest, extractPagination, commonSchemas } from '../middleware/validation';
+import { validateRequest, extractPagination, commonSchemas, ValidationSchema, ValidationRule } from '../middleware/validation';
 import { BenchmarkModel } from '../database/models/Benchmark';
 import { logApiCall } from '../middleware/requestLogger';
 import { ApiResponse } from '../types/index';
@@ -218,7 +218,7 @@ router.get('/datasets',
  */
 router.get('/search',
   logApiCall,
-  validateRequest(commonSchemas.search),
+  validateRequest(commonSchemas.search as ValidationSchema),
   asyncHandler(async (req: express.Request, res: express.Response) => {
     const { q } = req.query;
     const pagination = req.pagination!;
@@ -275,7 +275,7 @@ router.get('/search',
  */
 router.get('/:id',
   logApiCall,
-  validateRequest(commonSchemas.id),
+  validateRequest(commonSchemas.id as ValidationSchema),
   asyncHandler(async (req: express.Request, res: express.Response) => {
     const { id } = req.params;
     const benchmark = await BenchmarkModel.findById(id);
@@ -352,7 +352,7 @@ router.get('/:id',
  */
 router.post('/',
   logApiCall,
-  validateRequest(commonSchemas.benchmarkCreate),
+  validateRequest(commonSchemas.benchmarkCreate as ValidationSchema),
   asyncHandler(async (req: express.Request, res: express.Response) => {
     const benchmarkData = {
       ...req.body,
@@ -428,7 +428,7 @@ router.post('/',
 router.put('/:id',
   logApiCall,
   validateRequest({
-    params: commonSchemas.id.params,
+    params: commonSchemas.id.params as Record<string, ValidationRule>,
     body: {
       name: { type: 'string', min: 1, max: 255, required: false },
       type: { type: 'string', enum: ['swe-bench', 'gaia', 'osworld', 'webarena', 'agentbench', 'custom'], required: false },
@@ -503,7 +503,7 @@ router.put('/:id',
 router.patch('/:id/activate',
   logApiCall,
   validateRequest({
-    params: commonSchemas.id.params,
+    params: commonSchemas.id.params as Record<string, ValidationRule>,
     body: {
       isActive: { type: 'boolean', required: true },
     },
@@ -562,7 +562,7 @@ router.patch('/:id/activate',
  */
 router.delete('/:id',
   logApiCall,
-  validateRequest(commonSchemas.id),
+  validateRequest(commonSchemas.id as ValidationSchema),
   asyncHandler(async (req: express.Request, res: express.Response) => {
     const { id } = req.params;
     const success = await BenchmarkModel.delete(id);

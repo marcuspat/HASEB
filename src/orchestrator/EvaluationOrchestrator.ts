@@ -3,10 +3,11 @@
  * Coordinates evaluation execution with comprehensive metrics collection
  */
 
-import { StateGraph, CompiledGraph } from '@langchain/langgraph';
+import { StateGraph, Annotation, START } from '@langchain/langgraph';
 import { logger } from '../utils/logger';
 import { MetricsOrchestrator } from '../services/metrics/index';
-import { MetricsCollectionContext } from '../types/metrics';
+import { MetricsCollectionContext, ComprehensiveMetrics } from '../types/metrics';
+import { EvaluationMetrics } from '../types/index';
 import { EvaluationModel } from '../database/models/Evaluation';
 import { BenchmarkModel } from '../database/models/Benchmark';
 import { AgentModel } from '../database/models/Agent';
@@ -25,17 +26,38 @@ interface EvaluationState {
   logs: string[];
 }
 
+/**
+ * LangGraph state definition for the evaluation workflow. Each field is a
+ * last-value channel that mirrors the {@link EvaluationState} interface, so a
+ * node returning a full state object replaces the corresponding channels.
+ */
+const EvaluationStateAnnotation = Annotation.Root({
+  id: Annotation<string>,
+  agentId: Annotation<string>,
+  benchmarkId: Annotation<string>,
+  status: Annotation<EvaluationState['status']>,
+  startTime: Annotation<Date | undefined>,
+  endTime: Annotation<Date | undefined>,
+  configuration: Annotation<Record<string, any>>,
+  results: Annotation<any>,
+  errors: Annotation<string[] | undefined>,
+  metrics: Annotation<any>,
+  logs: Annotation<string[]>,
+});
+
+type GraphState = typeof EvaluationStateAnnotation.State;
+
 interface LangGraphNodes {
-  setup: (state: EvaluationState) => Promise<EvaluationState>;
-  execute: (state: EvaluationState) => Promise<EvaluationState>;
-  collectMetrics: (state: EvaluationState) => Promise<EvaluationState>;
-  analyzeResults: (state: EvaluationState) => Promise<EvaluationState>;
-  cleanup: (state: EvaluationState) => Promise<EvaluationState>;
+  setup: (state: GraphState) => Promise<GraphState>;
+  execute: (state: GraphState) => Promise<GraphState>;
+  collectMetrics: (state: GraphState) => Promise<GraphState>;
+  analyzeResults: (state: GraphState) => Promise<GraphState>;
+  cleanup: (state: GraphState) => Promise<GraphState>;
 }
 
 export class EvaluationOrchestrator {
   private metricsOrchestrator?: MetricsOrchestrator;
-  private graph?: CompiledGraph<EvaluationState>;
+  private graph?: ReturnType<EvaluationOrchestrator['buildEvaluationGraph']>;
   private isRunning: boolean = false;
   private currentEvaluation?: EvaluationState;
 
@@ -126,7 +148,7 @@ export class EvaluationOrchestrator {
         status: 'running',
         configuration,
         logs: [],
-        metrics: null,
+        metrics: undefined,
         startTime: this.currentEvaluation.startTime,
       });
 
@@ -153,12 +175,14 @@ export class EvaluationOrchestrator {
       );
 
       if (finalMetrics) {
-        await EvaluationModel.updateMetrics(finalState.id, finalMetrics);
+        await EvaluationModel.updateMetrics(finalState.id, this.toEvaluationMetrics(finalMetrics));
       }
 
       logger.info(`Evaluation ${finalState.id} completed`, {
         status: finalState.status,
-        duration: finalState.endTime.getTime() - finalState.startTime.getTime(),
+        duration: finalState.startTime
+          ? finalState.endTime.getTime() - finalState.startTime.getTime()
+          : 0,
       });
 
       return finalState;
@@ -214,9 +238,9 @@ export class EvaluationOrchestrator {
   /**
    * Build the LangGraph evaluation workflow
    */
-  private buildEvaluationGraph(): CompiledGraph<EvaluationState> {
+  private buildEvaluationGraph() {
     const nodes: LangGraphNodes = {
-      setup: async (state: EvaluationState): Promise<EvaluationState> => {
+      setup: async (state: GraphState): Promise<GraphState> => {
         logger.debug(`Setting up evaluation ${state.id}`);
 
         // Get agent and benchmark details
@@ -240,7 +264,7 @@ export class EvaluationOrchestrator {
         return state;
       },
 
-      execute: async (state: EvaluationState): Promise<EvaluationState> => {
+      execute: async (state: GraphState): Promise<GraphState> => {
         logger.debug(`Executing evaluation ${state.id}`);
 
         // Record task start
@@ -280,7 +304,7 @@ export class EvaluationOrchestrator {
         }
       },
 
-      collectMetrics: async (state: EvaluationState): Promise<EvaluationState> => {
+      collectMetrics: async (state: GraphState): Promise<GraphState> => {
         logger.debug(`Collecting metrics for evaluation ${state.id}`);
 
         // Get current metrics from orchestrator
@@ -298,7 +322,7 @@ export class EvaluationOrchestrator {
         return state;
       },
 
-      analyzeResults: async (state: EvaluationState): Promise<EvaluationState> => {
+      analyzeResults: async (state: GraphState): Promise<GraphState> => {
         logger.debug(`Analyzing results for evaluation ${state.id}`);
 
         // Record decision making
@@ -328,7 +352,7 @@ export class EvaluationOrchestrator {
         return state;
       },
 
-      cleanup: async (state: EvaluationState): Promise<EvaluationState> => {
+      cleanup: async (state: GraphState): Promise<GraphState> => {
         logger.debug(`Cleaning up evaluation ${state.id}`);
 
         // Record final task completion
@@ -342,24 +366,18 @@ export class EvaluationOrchestrator {
       },
     };
 
-    // Build the graph with edges
-    const graph = new StateGraph<EvaluationState>({
-      channels: {},
-    });
-
-    // Add nodes
-    Object.entries(nodes).forEach(([name, node]) => {
-      graph.addNode(name, node);
-    });
-
-    // Add edges (sequential execution)
-    graph.addEdge('setup', 'execute');
-    graph.addEdge('execute', 'collectMetrics');
-    graph.addEdge('collectMetrics', 'analyzeResults');
-    graph.addEdge('analyzeResults', 'cleanup');
-
-    // Set entry point
-    graph.setEntryPoint('setup');
+    // Build the graph with typed nodes and sequential edges
+    const graph = new StateGraph(EvaluationStateAnnotation)
+      .addNode('setup', nodes.setup)
+      .addNode('execute', nodes.execute)
+      .addNode('collectMetrics', nodes.collectMetrics)
+      .addNode('analyzeResults', nodes.analyzeResults)
+      .addNode('cleanup', nodes.cleanup)
+      .addEdge(START, 'setup')
+      .addEdge('setup', 'execute')
+      .addEdge('execute', 'collectMetrics')
+      .addEdge('collectMetrics', 'analyzeResults')
+      .addEdge('analyzeResults', 'cleanup');
 
     return graph.compile();
   }
@@ -429,7 +447,49 @@ export class EvaluationOrchestrator {
    */
   public async collectMetrics(): Promise<void> {
     if (this.metricsOrchestrator && this.currentEvaluation) {
-      await this.metricsOrchestrator.collectMetrics();
+      await this.metricsOrchestrator.getCurrentMetrics();
+    }
+  }
+
+  /**
+   * Map the nested {@link ComprehensiveMetrics} produced by the metrics
+   * orchestrator onto the flat {@link EvaluationMetrics} shape stored on the
+   * evaluation record.
+   */
+  private toEvaluationMetrics(metrics: ComprehensiveMetrics): EvaluationMetrics {
+    return {
+      taskSuccessRate: metrics.performance.taskSuccessRate,
+      executionTime: metrics.efficiency.executionTime,
+      latencyPerStep: metrics.efficiency.latencyPerStep,
+      totalSteps: metrics.efficiency.totalSteps,
+      totalTokens: metrics.cost.totalTokens,
+      estimatedCost: metrics.cost.estimatedCost,
+      toolCallErrorRate: metrics.robustness.toolCallErrorRate,
+      recoveryRate: metrics.robustness.recoveryRate,
+      toolSelectionAccuracy: metrics.quality.toolSelectionAccuracy,
+      parameterAccuracy: metrics.quality.parameterAccuracy,
+    };
+  }
+
+  /**
+   * Gracefully shut down the orchestrator. Stops any in-flight evaluation
+   * bookkeeping and releases the metrics orchestrator resources.
+   */
+  public async shutdown(): Promise<void> {
+    logger.info('Shutting down EvaluationOrchestrator');
+
+    this.isRunning = false;
+    this.currentEvaluation = undefined;
+    this.graph = undefined;
+
+    if (this.metricsOrchestrator) {
+      try {
+        await this.metricsOrchestrator.cleanup();
+      } catch (error) {
+        logger.error('Failed to cleanup metrics orchestrator during shutdown:', error);
+      } finally {
+        this.metricsOrchestrator = undefined;
+      }
     }
   }
 

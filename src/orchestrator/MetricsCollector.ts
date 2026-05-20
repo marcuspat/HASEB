@@ -1,6 +1,7 @@
 import { EventEmitter } from 'events';
 import { logger } from '../utils/logger';
-import { EvaluationMetrics, TaskState } from '../types/orchestrator';
+import { TaskState } from '../types/orchestrator';
+import { EvaluationMetrics } from '../types/index';
 import { EvaluationModel } from '../database/models/Evaluation';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -71,7 +72,8 @@ interface QualityMetrics {
 }
 
 interface SystemMetrics {
-  environmentId: string;
+  evaluationId: string;
+  environmentId?: string;
   containerStats?: any;
   processStats: any;
   networkStats: any;

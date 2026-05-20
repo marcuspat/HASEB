@@ -25,8 +25,8 @@ export const requestLogger = (req: Request, res: Response, next: NextFunction): 
   });
 
   // Override res.end to log response
-  const originalEnd = res.end;
-  res.end = function (chunk?: any, encoding?: any) {
+  const originalEnd = res.end.bind(res);
+  res.end = function (this: Response, chunk?: any, encoding?: any): Response {
     const duration = Date.now() - startTime;
     const { statusCode } = res;
 
@@ -41,8 +41,8 @@ export const requestLogger = (req: Request, res: Response, next: NextFunction): 
     });
 
     // Call original end
-    originalEnd.call(this, chunk, encoding);
-  };
+    return originalEnd(chunk, encoding);
+  } as Response['end'];
 
   next();
 };

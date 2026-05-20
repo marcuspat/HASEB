@@ -103,28 +103,28 @@ const AgentsPage: React.FC = () => {
               <div className="flex items-center justify-between">
                 <span className="text-sm text-gray-600">Overall Score</span>
                 <span className="font-semibold text-gray-900">
-                  {calculateOverallScore(agent.performance).toFixed(1)}
+                  {(agent.performance ? calculateOverallScore(agent.performance) : 0).toFixed(1)}
                 </span>
               </div>
 
               <div className="flex items-center justify-between">
                 <span className="text-sm text-gray-600">Success Rate</span>
                 <span className="font-medium text-gray-900">
-                  {(agent.performance.taskSuccessRate * 100).toFixed(1)}%
+                  {((agent.performance?.taskSuccessRate ?? 0) * 100).toFixed(1)}%
                 </span>
               </div>
 
               <div className="flex items-center justify-between">
                 <span className="text-sm text-gray-600">Avg Execution</span>
                 <span className="font-medium text-gray-900">
-                  {formatDuration(agent.performance.executionTime)}
+                  {formatDuration(agent.performance?.executionTime ?? 0)}
                 </span>
               </div>
 
               <div className="flex items-center justify-between">
                 <span className="text-sm text-gray-600">Last Active</span>
                 <span className="text-sm text-gray-900">
-                  {formatDate(agent.lastActive)}
+                  {agent.lastActive ? formatDate(agent.lastActive) : '—'}
                 </span>
               </div>
             </div>

@@ -1,3 +1,7 @@
+// Must be first: populates process.env from .env before any imported module
+// reads it at evaluation time.
+import './config/env';
+
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
@@ -7,7 +11,6 @@ import rateLimit from 'express-rate-limit';
 import swaggerJsdoc from 'swagger-jsdoc';
 import swaggerUi from 'swagger-ui-express';
 import { createServer as createHttpServer } from 'http';
-import dotenv from 'dotenv';
 
 import { logger } from './utils/logger';
 import { db } from './database/connection';
@@ -27,12 +30,13 @@ import { EvaluationOrchestrator } from './orchestrator/EvaluationOrchestrator';
 import { EvaluationQueue } from './orchestrator/EvaluationQueue';
 import { WebSocketManager } from './orchestrator/WebSocketManager';
 
+// Domain runtime (DDD composition root)
+import { bootstrapDomainRuntime, type DomainRuntime } from './composition/domain-runtime';
+
 // Middleware
 import { errorHandler } from './middleware/errorHandler';
 import { requestLogger } from './middleware/requestLogger';
 import { validateRequest } from './middleware/validation';
-
-dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -40,6 +44,13 @@ const PORT = process.env.PORT || 3000;
 // Initialize orchestrator components
 export const orchestrator = new EvaluationOrchestrator();
 export const wsManager = new WebSocketManager();
+
+// Wire the DDD domain runtime. The WebSocketManager satisfies BroadcasterPort
+// structurally, so domain events published on the bus are relayed to clients
+// through the existing WebSocket transport.
+export const domainRuntime: DomainRuntime = bootstrapDomainRuntime({
+  broadcaster: wsManager,
+});
 
 // Rate limiting
 const limiter = rateLimit({
@@ -216,6 +227,7 @@ async function startServer() {
     // Graceful shutdown
     process.on('SIGTERM', async () => {
       logger.info('SIGTERM received, shutting down gracefully...');
+      domainRuntime.shutdown();
       await orchestrator.shutdown();
       await wsManager.close();
       await db.close();
@@ -224,6 +236,7 @@ async function startServer() {
 
     process.on('SIGINT', async () => {
       logger.info('SIGINT received, shutting down gracefully...');
+      domainRuntime.shutdown();
       await orchestrator.shutdown();
       await wsManager.close();
       await db.close();

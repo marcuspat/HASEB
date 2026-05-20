@@ -43,7 +43,7 @@ export class EnvironmentManager extends EventEmitter {
   private environments: Map<string, EvaluationEnvironment>;
   private dockerEnvironments: Map<string, DockerEnvironment>;
   private sandboxEnvironments: Map<string, SandboxEnvironment>;
-  private cleanupInterval: NodeJS.Timeout;
+  private cleanupInterval!: NodeJS.Timeout;
   private defaultEnvironmentType: 'docker' | 'sandbox' | 'local';
   private resourceLimits: {
     maxCpu: number;
@@ -646,9 +646,9 @@ CMD ["npm", "start"]
       if (dockerEnv) {
         try {
           const info = await this.getDockerContainerInfo(dockerEnv.containerId);
-          environment.status = info.State === 'running' ? 'ready' : 'stopped';
+          environment.status = info.State === 'running' ? 'ready' : 'destroyed';
         } catch (error) {
-          environment.status = 'error';
+          environment.status = 'destroyed';
         }
       }
     }

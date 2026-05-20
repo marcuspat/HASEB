@@ -123,7 +123,7 @@ export abstract class BaseExecutionAgent extends EventEmitter {
         status: 'pending',
         configuration: this.configuration,
         logs: [],
-        metrics: null,
+        metrics: undefined,
         startTime: new Date(),
         endTime: undefined
       });
@@ -133,7 +133,7 @@ export abstract class BaseExecutionAgent extends EventEmitter {
       this.startTime = new Date();
       this.isRunning = true;
 
-      await EvaluationModel.updateStatus(this.evaluationId, 'running', this.startTime);
+      await EvaluationModel.updateStatusWithTime(this.evaluationId, 'running', this.startTime);
 
       this.emit('started', { evaluationId: this.evaluationId, agentId: this.agentId });
       this.log(`Execution started for evaluation ${this.evaluationId}`);
@@ -163,7 +163,7 @@ export abstract class BaseExecutionAgent extends EventEmitter {
         this.startTime,
         this.endTime
       );
-      await EvaluationModel.updateMetrics(this.evaluationId, this.metrics as EvaluationMetrics);
+      await EvaluationModel.updateMetrics(this.evaluationId, this.toEvaluationMetrics());
       await EvaluationModel.addLogs(this.evaluationId, this.logs);
 
       this.emit('completed', {
@@ -210,6 +210,21 @@ export abstract class BaseExecutionAgent extends EventEmitter {
 
       throw error;
     }
+  }
+
+  protected toEvaluationMetrics(): EvaluationMetrics {
+    return {
+      taskSuccessRate: this.metrics.performance.taskSuccessRate,
+      executionTime: this.metrics.efficiency.executionTime,
+      latencyPerStep: this.metrics.efficiency.latencyPerStep,
+      totalSteps: this.metrics.efficiency.totalSteps,
+      totalTokens: this.metrics.cost.totalTokens,
+      estimatedCost: this.metrics.cost.estimatedCost,
+      toolCallErrorRate: this.metrics.robustness.toolCallErrorRate,
+      recoveryRate: this.metrics.robustness.recoveryRate,
+      toolSelectionAccuracy: this.metrics.quality.toolSelectionAccuracy,
+      parameterAccuracy: this.metrics.quality.parameterAccuracy
+    };
   }
 
   protected abstract executeTasks(): Promise<void>;
