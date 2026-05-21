@@ -194,11 +194,10 @@ describe('Database Integration Tests', () => {
     it('should manage benchmark lifecycle', async () => {
       const benchmarkData = {
         name: 'Integration Benchmark',
-        type: 'swe-bench',
+        type: 'swe-bench' as const,
         description: 'Test benchmark',
-        totalTasks: 100,
-        completedTasks: 75,
-        difficulty: 'medium',
+        dataset: 'swe-bench-integration-v1',
+        isActive: true,
       };
 
       // Create
@@ -211,10 +210,11 @@ describe('Database Integration Tests', () => {
 
       // Update
       const updated = await BenchmarkModel.update(created.id, {
-        completedTasks: 80,
-        lastRun: new Date(),
+        description: 'Updated benchmark description',
+        isActive: false,
       });
-      expect(updated!.completedTasks).toBe(80);
+      expect(updated!.description).toBe('Updated benchmark description');
+      expect(updated!.isActive).toBe(false);
 
       // List
       const benchmarks = await BenchmarkModel.list(1, 10, 'swe-bench');
@@ -230,14 +230,14 @@ describe('Database Integration Tests', () => {
         name: 'Metrics Test Benchmark',
         type: 'osworld',
         description: 'For testing metrics',
-        totalTasks: 50,
-        completedTasks: 40,
-        difficulty: 'hard',
+        dataset: 'osworld-metrics-v1',
+        isActive: true,
       });
 
       const metrics = await BenchmarkModel.getBenchmarkMetrics(benchmark.id);
       expect(metrics).toBeDefined();
       expect(metrics.totalEvaluations).toBeDefined();
+      expect(metrics.totalEvaluations).toBe(0);
     });
   });
 
@@ -258,7 +258,7 @@ describe('Database Integration Tests', () => {
         agentId: agents.agents[0].id,
         benchmarkId: benchmarks.benchmarks[0].id,
         status: 'running' as const,
-        progress: 0,
+        startTime: new Date(),
         metrics: {
           taskSuccessRate: 0,
           executionTime: 0,
@@ -276,13 +276,16 @@ describe('Database Integration Tests', () => {
       // Create
       const created = await EvaluationModel.create(evaluationData);
       expect(created.id).toBeDefined();
+      expect(created.status).toBe('running');
 
-      // Update progress
-      await EvaluationModel.updateProgress(created.id, 50);
+      // Update metrics mid-run
+      const midMetrics = { ...evaluationData.metrics, taskSuccessRate: 0.5, totalSteps: 6 };
+      const metricsUpdated = await EvaluationModel.updateMetrics(created.id, midMetrics);
+      expect(metricsUpdated).toBe(true);
       const updated = await EvaluationModel.findById(created.id);
-      expect(updated!.progress).toBe(50);
+      expect(updated!.metrics.totalSteps).toBe(6);
 
-      // Complete evaluation
+      // Complete evaluation: final metrics + status/end_time transition
       const finalMetrics = {
         taskSuccessRate: 0.85,
         executionTime: 1200,
@@ -296,11 +299,13 @@ describe('Database Integration Tests', () => {
         parameterAccuracy: 0.88,
       };
 
-      await EvaluationModel.complete(created.id, finalMetrics);
+      await EvaluationModel.updateMetrics(created.id, finalMetrics);
+      const endTime = new Date();
+      await EvaluationModel.updateStatusWithTime(created.id, 'completed', undefined, endTime);
       const completed = await EvaluationModel.findById(created.id);
       expect(completed!.status).toBe('completed');
-      expect(completed!.progress).toBe(100);
       expect(completed!.endTime).toBeDefined();
+      expect(completed!.metrics.taskSuccessRate).toBe(0.85);
 
       // List evaluations
       const evaluations = await EvaluationModel.list(1, 10, agents.agents[0].id);
@@ -325,16 +330,14 @@ describe('Database Integration Tests', () => {
       const benchmark = await BenchmarkModel.create({
         name: 'Test Benchmark',
         type: 'swe-bench',
-        totalTasks: 10,
-        completedTasks: 0,
-        difficulty: 'easy',
+        dataset: 'swe-bench-ref-v1',
+        isActive: true,
       });
 
       const evaluation = await EvaluationModel.create({
         agentId: agent.id,
         benchmarkId: benchmark.id,
         status: 'running',
-        progress: 0,
         metrics: {
           taskSuccessRate: 0,
           executionTime: 0,
@@ -362,14 +365,16 @@ describe('Database Integration Tests', () => {
       const benchmarkEvaluations = await EvaluationModel.list(1, 10, undefined, benchmark.id);
       expect(benchmarkEvaluations.evaluations).toHaveLength(1);
 
-      // Test cascade delete protection
-      await expect(AgentModel.delete(agent.id)).rejects.toThrow();
-      await expect(BenchmarkModel.delete(benchmark.id)).rejects.toThrow();
+      // Schema uses ON DELETE CASCADE: deleting the agent removes its evaluations
+      const agentDeleted = await AgentModel.delete(agent.id);
+      expect(agentDeleted).toBe(true);
 
-      // Clean up in correct order
-      await EvaluationModel.delete(evaluation.id);
-      await AgentModel.delete(agent.id);
-      await BenchmarkModel.delete(benchmark.id);
+      const orphanedEvaluation = await EvaluationModel.findById(evaluation.id);
+      expect(orphanedEvaluation).toBeNull();
+
+      // Benchmark can now be removed cleanly
+      const benchmarkDeleted = await BenchmarkModel.delete(benchmark.id);
+      expect(benchmarkDeleted).toBe(true);
     });
 
     it('should handle complex data relationships', async () => {
@@ -380,8 +385,8 @@ describe('Database Integration Tests', () => {
       ]);
 
       const benchmarks = await Promise.all([
-        BenchmarkModel.create({ name: 'Benchmark X', type: 'swe-bench', totalTasks: 20, completedTasks: 0, difficulty: 'easy' }),
-        BenchmarkModel.create({ name: 'Benchmark Y', type: 'osworld', totalTasks: 15, completedTasks: 0, difficulty: 'medium' }),
+        BenchmarkModel.create({ name: 'Benchmark X', type: 'swe-bench', dataset: 'bench-x-v1', isActive: true }),
+        BenchmarkModel.create({ name: 'Benchmark Y', type: 'osworld', dataset: 'bench-y-v1', isActive: true }),
       ]);
 
       // Create evaluations for all combinations
@@ -392,7 +397,6 @@ describe('Database Integration Tests', () => {
             agentId: agent.id,
             benchmarkId: benchmark.id,
             status: 'completed',
-            progress: 100,
             metrics: {
               taskSuccessRate: Math.random() * 0.3 + 0.7, // 0.7-1.0
               executionTime: Math.floor(Math.random() * 2000) + 500,
@@ -446,16 +450,14 @@ describe('Database Integration Tests', () => {
         const benchmark = await BenchmarkModel.create({
           name: `Concurrent Benchmark ${i}`,
           type: 'swe-bench',
-          totalTasks: 10,
-          completedTasks: 0,
-          difficulty: 'easy',
+          dataset: `concurrent-${i}-v1`,
+          isActive: true,
         });
 
         const evaluation = await EvaluationModel.create({
           agentId: agent.id,
           benchmarkId: benchmark.id,
           status: 'running',
-          progress: 0,
           metrics: {
             taskSuccessRate: 0,
             executionTime: 0,
@@ -510,15 +512,16 @@ describe('Database Integration Tests', () => {
       expect(page1.agents).toHaveLength(20);
       expect(page2.agents).toHaveLength(20);
       expect(page3.agents).toHaveLength(20);
-      expect(page1.total).toBe(102); // 100 new + 2 from seed
+      expect(page1.total).toBe(100); // Performance block does not seed; 100 created here
 
       // Test filtering performance
       const sweAgents = await AgentModel.list(1, 50, 'swe');
       expect(sweAgents.agents.length).toBeGreaterThan(0);
 
-      // Test search performance
+      // Test search performance: 100 matches total, capped at the page limit of 50
       const searchResults = await AgentModel.search('Scale Test', 1, 50);
-      expect(searchResults.agents.length).toBe(100);
+      expect(searchResults.total).toBe(100);
+      expect(searchResults.agents.length).toBe(50);
 
       // Cleanup
       for (const agent of agents) {

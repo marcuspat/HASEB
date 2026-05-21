@@ -14,10 +14,10 @@ export class AgentModel {
       [
         agentData.name,
         agentData.type,
-        agentData.description,
-        JSON.stringify(agentData.capabilities),
-        JSON.stringify(agentData.configuration),
-        agentData.status
+        agentData.description ?? null,
+        JSON.stringify(agentData.capabilities ?? []),
+        JSON.stringify(agentData.configuration ?? {}),
+        agentData.status ?? 'inactive'
       ]
     );
 
@@ -300,5 +300,32 @@ export class AgentModel {
     }));
 
     return { agents, total };
+  }
+
+  static async getAgentMetrics(agentId: string): Promise<{
+    totalEvaluations: number;
+    completedEvaluations: number;
+    runningEvaluations: number;
+    avgTaskSuccessRate: number | null;
+  }> {
+    const query = `
+      SELECT
+        COUNT(*)::int AS total_evaluations,
+        COUNT(*) FILTER (WHERE status = 'completed')::int AS completed_evaluations,
+        COUNT(*) FILTER (WHERE status = 'running')::int AS running_evaluations,
+        AVG((metrics->>'taskSuccessRate')::float) AS avg_task_success_rate
+      FROM evaluations
+      WHERE agent_id = $1
+    `;
+
+    const result = await db.query(query, [agentId]);
+    const row = result.rows[0];
+
+    return {
+      totalEvaluations: row.total_evaluations,
+      completedEvaluations: row.completed_evaluations,
+      runningEvaluations: row.running_evaluations,
+      avgTaskSuccessRate: row.avg_task_success_rate !== null ? parseFloat(row.avg_task_success_rate) : null,
+    };
   }
 }

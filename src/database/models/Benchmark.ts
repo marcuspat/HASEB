@@ -14,11 +14,11 @@ export class BenchmarkModel {
       [
         benchmarkData.name,
         benchmarkData.type,
-        benchmarkData.description,
+        benchmarkData.description ?? null,
         benchmarkData.dataset,
-        JSON.stringify(benchmarkData.evaluationCriteria),
-        JSON.stringify(benchmarkData.configuration),
-        benchmarkData.isActive
+        JSON.stringify(benchmarkData.evaluationCriteria ?? []),
+        JSON.stringify(benchmarkData.configuration ?? {}),
+        benchmarkData.isActive ?? true
       ]
     );
 
@@ -304,5 +304,32 @@ export class BenchmarkModel {
     const query = 'SELECT DISTINCT dataset FROM benchmarks ORDER BY dataset';
     const result = await db.query(query);
     return result.rows.map((row: any) => row.dataset);
+  }
+
+  static async getBenchmarkMetrics(benchmarkId: string): Promise<{
+    totalEvaluations: number;
+    completedEvaluations: number;
+    runningEvaluations: number;
+    avgTaskSuccessRate: number | null;
+  }> {
+    const query = `
+      SELECT
+        COUNT(*)::int AS total_evaluations,
+        COUNT(*) FILTER (WHERE status = 'completed')::int AS completed_evaluations,
+        COUNT(*) FILTER (WHERE status = 'running')::int AS running_evaluations,
+        AVG((metrics->>'taskSuccessRate')::float) AS avg_task_success_rate
+      FROM evaluations
+      WHERE benchmark_id = $1
+    `;
+
+    const result = await db.query(query, [benchmarkId]);
+    const row = result.rows[0];
+
+    return {
+      totalEvaluations: row.total_evaluations,
+      completedEvaluations: row.completed_evaluations,
+      runningEvaluations: row.running_evaluations,
+      avgTaskSuccessRate: row.avg_task_success_rate !== null ? parseFloat(row.avg_task_success_rate) : null,
+    };
   }
 }

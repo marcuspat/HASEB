@@ -14,12 +14,12 @@ export class EvaluationModel {
       [
         evaluationData.agentId,
         evaluationData.benchmarkId,
-        evaluationData.status,
-        JSON.stringify(evaluationData.configuration),
-        JSON.stringify(evaluationData.logs),
+        evaluationData.status ?? 'pending',
+        JSON.stringify(evaluationData.configuration ?? {}),
+        JSON.stringify(evaluationData.logs ?? []),
         evaluationData.metrics ? JSON.stringify(evaluationData.metrics) : null,
-        evaluationData.startTime,
-        evaluationData.endTime
+        evaluationData.startTime ?? null,
+        evaluationData.endTime ?? null
       ]
     );
 
