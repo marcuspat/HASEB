@@ -270,7 +270,6 @@ export class CostMetricsCollector extends BaseMetricCollector {
       cost: Math.round(cost * 10000) / 10000,
     });
 
-    this.emit('token_usage', { model, inputTokens, outputTokens, cost });
   }
 
   /**
@@ -306,7 +305,6 @@ export class CostMetricsCollector extends BaseMetricCollector {
       responseTime,
     });
 
-    this.emit('api_call', { apiName, endpoint, cost, tokens, responseTime });
   }
 
   /**
@@ -338,7 +336,6 @@ export class CostMetricsCollector extends BaseMetricCollector {
       cost: Math.round(cost * 10000) / 10000,
     });
 
-    this.emit('resource_usage', { type, amount, unit, cost });
   }
 
   /**

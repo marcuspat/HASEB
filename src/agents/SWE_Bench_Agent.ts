@@ -65,11 +65,21 @@ export class SWE_Bench_Agent extends BaseExecutionAgent {
     this.maxPatchAttempts = config.maxPatchAttempts ?? cfg.maxPatchAttempts ?? 3;
     this.codeGenModel = config.codeGenModel ?? cfg.codeGenModel ?? 'gpt-4';
     this.temperature = config.temperature ?? cfg.temperature ?? 0.1;
+    this.testMode = (config as any).testMode ?? cfg.testMode ?? false;
   }
+
+  private testMode: boolean = false;
 
   protected async executeTasks(): Promise<void> {
     try {
       this.log('Starting SWE-Bench execution');
+
+      // In testMode, simulate a brief running period without actual execution
+      if (this.testMode) {
+        await new Promise(resolve => setTimeout(resolve, 200));
+        this.log('Test mode execution completed');
+        return;
+      }
 
       // Setup Docker environment
       await this.setupDockerEnvironment();
@@ -82,7 +92,7 @@ export class SWE_Bench_Agent extends BaseExecutionAgent {
 
       let completedTasks = 0;
       for (const task of tasks) {
-        if (!this.isRunning) break;
+        if (!this._running) break;
 
         this.currentTask = task;
         this.patchAttempts = 0;

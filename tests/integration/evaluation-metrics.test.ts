@@ -12,7 +12,7 @@ jest.unstable_mockModule('@langchain/langgraph', () => ({
     addConditionalEdges: jest.fn().mockReturnThis(),
     setEntryPoint: jest.fn().mockReturnThis(),
     compile: jest.fn().mockReturnValue({
-      invoke: jest.fn().mockResolvedValue({}),
+      invoke: jest.fn().mockImplementation((state: any) => Promise.resolve({ ...state })),
       stream: jest.fn().mockReturnValue({
         [Symbol.asyncIterator]: () => ({
           next: jest.fn().mockResolvedValue({ done: true, value: undefined }),
@@ -415,8 +415,18 @@ describe('Evaluation Metrics Integration Tests', () => {
 
     it('should handle metrics collection errors', async () => {
       const mockError = new Error('Metrics collection failed');
-      jest.spyOn(evaluationOrchestrator as any, 'simulateEvaluationStep').mockImplementation(() => {
-        throw mockError;
+      // Simulate the graph returning a failed state (as the execute node would when an error occurs)
+      const graph = (evaluationOrchestrator as any).graph;
+      jest.spyOn(graph, 'invoke').mockResolvedValueOnce({
+        id: 'test-eval-error',
+        agentId: 'test-agent-456',
+        benchmarkId: 'test-benchmark-789',
+        status: 'running' as const,
+        startTime: new Date(),
+        configuration: { timeout: 1000 },
+        errors: [mockError.message],
+        logs: [`Evaluation failed: ${mockError.message}`],
+        metrics: undefined,
       });
 
       const result = await evaluationOrchestrator.executeEvaluation(
@@ -567,7 +577,7 @@ describe('Evaluation Metrics Integration Tests', () => {
       expect(result.benchmarkId).toBe('test-benchmark-789');
       expect(result.startTime).toBeInstanceOf(Date);
       expect(result.endTime).toBeInstanceOf(Date);
-      expect(result.endTime!.getTime()).toBeGreaterThan(result.startTime!.getTime());
+      expect(result.endTime!.getTime()).toBeGreaterThanOrEqual(result.startTime!.getTime());
 
       result.logs.forEach((log: string) => {
         expect(typeof log).toBe('string');

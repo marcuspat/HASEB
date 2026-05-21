@@ -477,10 +477,10 @@ export class MetricsOrchestrator extends EventEmitter {
     const metrics: any = {};
 
     try {
-      // Collect metrics from each collector
+      // Gather fresh metrics directly from each collector (bypasses buffer lag)
       const performanceCollector = this.collectors.get('performance') as PerformanceMetricsCollector;
       if (performanceCollector) {
-        const perfMetrics = performanceCollector.getCurrentMetrics();
+        const perfMetrics = await (performanceCollector as any).gatherMetrics();
         if (perfMetrics) {
           metrics.performance = perfMetrics;
         }
@@ -488,7 +488,7 @@ export class MetricsOrchestrator extends EventEmitter {
 
       const efficiencyCollector = this.collectors.get('efficiency') as EfficiencyMetricsCollector;
       if (efficiencyCollector) {
-        const effMetrics = efficiencyCollector.getCurrentMetrics();
+        const effMetrics = await (efficiencyCollector as any).gatherMetrics();
         if (effMetrics) {
           metrics.efficiency = effMetrics;
         }
@@ -496,7 +496,7 @@ export class MetricsOrchestrator extends EventEmitter {
 
       const costCollector = this.collectors.get('cost') as CostMetricsCollector;
       if (costCollector) {
-        const costMetrics = costCollector.getCurrentMetrics();
+        const costMetrics = await (costCollector as any).gatherMetrics();
         if (costMetrics) {
           metrics.cost = costMetrics;
         }
@@ -504,7 +504,7 @@ export class MetricsOrchestrator extends EventEmitter {
 
       const robustnessCollector = this.collectors.get('robustness') as RobustnessMetricsCollector;
       if (robustnessCollector) {
-        const robustMetrics = robustnessCollector.getCurrentMetrics();
+        const robustMetrics = await (robustnessCollector as any).gatherMetrics();
         if (robustMetrics) {
           metrics.robustness = robustMetrics;
         }
@@ -512,7 +512,7 @@ export class MetricsOrchestrator extends EventEmitter {
 
       const qualityCollector = this.collectors.get('quality') as QualityMetricsCollector;
       if (qualityCollector) {
-        const qualityMetrics = qualityCollector.getCurrentMetrics();
+        const qualityMetrics = await (qualityCollector as any).gatherMetrics();
         if (qualityMetrics) {
           metrics.quality = qualityMetrics;
         }

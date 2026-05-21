@@ -239,7 +239,6 @@ export class EfficiencyMetricsCollector extends BaseMetricCollector {
     this.state.stepDurations.push(step.duration);
 
     logger.debug(`Step completed: ${stepId}`, { duration: step.duration });
-    this.emit('step_completed', { stepId, duration: step.duration });
   }
 
   /**

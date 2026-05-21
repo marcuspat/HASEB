@@ -61,7 +61,7 @@ export abstract class BaseExecutionAgent extends EventEmitter {
   protected endTime?: Date;
   protected metrics: AgentMetrics;
   protected logs: string[] = [];
-  protected isRunning: boolean = false;
+  protected _running: boolean = false;
   protected timeout: number;
   protected maxRetries: number;
   protected currentRetries: number = 0;
@@ -131,7 +131,7 @@ export abstract class BaseExecutionAgent extends EventEmitter {
       this.evaluationId = evaluation.id;
       this.status = 'running';
       this.startTime = new Date();
-      this.isRunning = true;
+      this._running = true;
 
       await EvaluationModel.updateStatusWithTime(this.evaluationId, 'running', this.startTime);
 
@@ -151,7 +151,7 @@ export abstract class BaseExecutionAgent extends EventEmitter {
 
       this.endTime = new Date();
       this.status = 'completed';
-      this.isRunning = false;
+      this._running = false;
 
       // Calculate final metrics
       await this.calculateFinalMetrics();
@@ -182,7 +182,7 @@ export abstract class BaseExecutionAgent extends EventEmitter {
       return finalEvaluation;
 
     } catch (error) {
-      this.isRunning = false;
+      this._running = false;
       this.status = 'failed';
       this.endTime = new Date();
 
@@ -291,8 +291,8 @@ export abstract class BaseExecutionAgent extends EventEmitter {
   }
 
   public cancel(): void {
-    if (this.isRunning) {
-      this.isRunning = false;
+    if (this._running) {
+      this._running = false;
       this.status = 'cancelled';
       this.endTime = new Date();
 
@@ -329,7 +329,7 @@ export abstract class BaseExecutionAgent extends EventEmitter {
   }
 
   public isExecutionRunning(): boolean {
-    return this.isRunning;
+    return this._running;
   }
 
   protected async retryExecution(): Promise<void> {
@@ -339,11 +339,23 @@ export abstract class BaseExecutionAgent extends EventEmitter {
 
       // Reset some state for retry
       this.status = 'running';
-      this.isRunning = true;
+      this._running = true;
 
       await this.executeTasks();
     } else {
       throw new Error(`Maximum retries (${this.maxRetries}) exceeded`);
     }
+  }
+
+  public isRunning(): boolean {
+    return this._running;
+  }
+
+  public start(): void {
+    this.execute().catch(err => logger.error(`Agent execution error: ${err}`));
+  }
+
+  public async stop(): Promise<void> {
+    this.cancel();
   }
 }

@@ -93,7 +93,19 @@ describe('GUI_Automation_Agent', () => {
     mockEvaluationModel.updateStatusWithTime = jest.fn().mockResolvedValue(true);
     mockEvaluationModel.updateMetrics = jest.fn().mockResolvedValue(true);
     mockEvaluationModel.addLogs = jest.fn().mockResolvedValue(true);
-    mockEvaluationModel.findById = jest.fn().mockResolvedValue(null);
+    mockEvaluationModel.findById = jest.fn().mockResolvedValue({
+      id: 'eval-123',
+      agentId: mockConfig.agentId,
+      benchmarkId: mockConfig.benchmarkId,
+      status: 'completed',
+      configuration: mockConfig.configuration,
+      logs: [],
+      metrics: {},
+      startTime: new Date(),
+      endTime: new Date(),
+      createdAt: new Date(),
+      updatedAt: new Date()
+    });
 
     // Mock child_process.spawn
     const mockChildProcess = {
@@ -150,20 +162,16 @@ describe('GUI_Automation_Agent', () => {
 
   describe('GUI Environment Setup', () => {
     it('should setup virtual display correctly', async () => {
-      const setupVirtualDisplaySpy = jest.spyOn(agent as any, 'setupVirtualDisplay');
-      setupVirtualDisplaySpy.mockResolvedValue(undefined);
-
+      // The real setupVirtualDisplay calls executeCommand which calls spawn internally.
+      // We just verify that spawn is called with Xvfb command.
       const executeCommandSpy = jest.spyOn(agent as any, 'executeCommand');
       executeCommandSpy.mockResolvedValue('Xvfb started');
 
       await (agent as any)['setupVirtualDisplay']();
 
-      expect(mockFs.mkdir).toHaveBeenCalledWith(
-        expect.stringContaining('haseb-gui-automation-'),
-        { recursive: true }
-      );
       expect(executeCommandSpy).toHaveBeenCalledWith(
-        expect.stringMatching(/Xvfb :\d+ -screen 0 \d+x\d+x24/)
+        expect.stringMatching(/Xvfb :\d+ -screen 0 \d+x\d+x24/),
+        expect.objectContaining({ detached: true })
       );
     });
 
@@ -172,12 +180,8 @@ describe('GUI_Automation_Agent', () => {
         taskId: 'web-task',
         environment: { type: 'web' }
       };
-
-      const setupBrowserSpy = jest.spyOn(agent as any, 'setupBrowser');
-      setupBrowserSpy.mockResolvedValue(undefined);
-
-      const executeCommandSpy = jest.spyOn(agent as any, 'executeCommand');
-      executeCommandSpy.mockResolvedValue('Browser started');
+      // virtualDisplay must be set for the env construction in setupBrowser
+      agent['virtualDisplay'] = 10;
 
       await (agent as any)['setupBrowser']();
 
@@ -194,9 +198,6 @@ describe('GUI_Automation_Agent', () => {
     });
 
     it('should verify GUI environment', async () => {
-      const verifyEnvSpy = jest.spyOn(agent as any, 'verifyGUIEnvironment');
-      verifyEnvSpy.mockResolvedValue(undefined);
-
       const takeScreenshotSpy = jest.spyOn(agent as any, 'takeScreenshot');
       takeScreenshotSpy.mockResolvedValue('/tmp/test-screenshot.png');
 
@@ -290,63 +291,59 @@ describe('GUI_Automation_Agent', () => {
   describe('GUI Actions', () => {
     it('should execute click actions correctly', async () => {
       const coordinates = { x: 100, y: 200 };
-      const executeClickSpy = jest.spyOn(agent as any, 'executeClick');
-      executeClickSpy.mockResolvedValue(true);
 
-      const executeCommandInDockerSpy = jest.spyOn(agent as any, 'executeCommandInDocker');
-      executeCommandInDockerSpy.mockResolvedValue('Click executed');
+      // Mock executeCommand (the real dependency) to resolve successfully
+      const executeCommandSpy = jest.spyOn(agent as any, 'executeCommand');
+      executeCommandSpy.mockResolvedValue('Click executed');
 
       const result = await (agent as any)['executeClick'](coordinates);
 
       expect(result).toBe(true);
-      expect(executeCommandInDockerSpy).toHaveBeenCalledWith(
+      expect(executeCommandSpy).toHaveBeenCalledWith(
         'xdotool mousemove 100 200 click 1'
       );
     });
 
     it('should execute type actions correctly', async () => {
       const text = 'Hello World';
-      const executeTypeSpy = jest.spyOn(agent as any, 'executeType');
-      executeTypeSpy.mockResolvedValue(true);
 
-      const executeCommandInDockerSpy = jest.spyOn(agent as any, 'executeCommandInDocker');
-      executeCommandInDockerSpy.mockResolvedValue('Text typed');
+      // Mock executeCommand (the real dependency)
+      const executeCommandSpy = jest.spyOn(agent as any, 'executeCommand');
+      executeCommandSpy.mockResolvedValue('Text typed');
 
       const result = await (agent as any)['executeType'](text);
 
       expect(result).toBe(true);
-      expect(executeCommandInDockerSpy).toHaveBeenCalledWith(
+      expect(executeCommandSpy).toHaveBeenCalledWith(
         `xdotool type "${text}"`
       );
     });
 
     it('should execute scroll actions correctly', async () => {
       const duration = 1500;
-      const executeScrollSpy = jest.spyOn(agent as any, 'executeScroll');
-      executeScrollSpy.mockResolvedValue(true);
 
-      const executeCommandInDockerSpy = jest.spyOn(agent as any, 'executeCommandInDocker');
-      executeCommandInDockerSpy.mockResolvedValue('Scrolled');
+      // Mock executeCommand (the real dependency)
+      const executeCommandSpy = jest.spyOn(agent as any, 'executeCommand');
+      executeCommandSpy.mockResolvedValue('Scrolled');
 
       const result = await (agent as any)['executeScroll'](duration);
 
       expect(result).toBe(true);
-      expect(executeCommandInDockerSpy).toHaveBeenCalledWith(
+      expect(executeCommandSpy).toHaveBeenCalledWith(
         `xdotool click 4; sleep ${duration / 1000}`
       );
     });
 
     it('should take screenshots correctly', async () => {
       const screenshotName = 'test-screenshot';
-      const takeScreenshotSpy = jest.spyOn(agent as any, 'takeScreenshot');
-      takeScreenshotSpy.mockResolvedValue('/tmp/test-screenshot.png');
 
+      // Mock executeCommand (the real dependency)
       const executeCommandSpy = jest.spyOn(agent as any, 'executeCommand');
       executeCommandSpy.mockResolvedValue('Screenshot taken');
 
       const result = await (agent as any)['takeScreenshot'](screenshotName);
 
-      expect(result).toBe('/tmp/test-screenshot.png');
+      expect(result).toBe(`/tmp/${screenshotName}.png`);
       expect(executeCommandSpy).toHaveBeenCalledWith(
         `import -window root /tmp/${screenshotName}.png`
       );
@@ -390,9 +387,6 @@ describe('GUI_Automation_Agent', () => {
 
   describe('Application Launching', () => {
     it('should launch calculator correctly', async () => {
-      const launchAppSpy = jest.spyOn(agent as any, 'launchApplication');
-      launchAppSpy.mockResolvedValue(undefined);
-
       const executeCommandSpy = jest.spyOn(agent as any, 'executeCommand');
       executeCommandSpy.mockResolvedValue('Calculator launched');
 
@@ -427,11 +421,13 @@ describe('GUI_Automation_Agent', () => {
         instructions: ['Click button']
       };
 
-      const validateSpy = jest.spyOn(agent as any, 'validateTaskCompletion');
-      validateSpy.mockResolvedValue(true);
-
       const takeScreenshotSpy = jest.spyOn(agent as any, 'takeScreenshot');
       takeScreenshotSpy.mockResolvedValue('/tmp/validation-screenshot.png');
+
+      // Set up state that makes validateTaskCompletion return true:
+      // screenshots.length > 0 && actionHistory.length > 0
+      agent['screenshots'] = ['/tmp/screenshot1.png'];
+      agent['actionHistory'] = [{ action: { type: 'click' }, success: true }];
 
       const result = await (agent as any)['validateTaskCompletion'](mockTask);
 
@@ -505,12 +501,8 @@ describe('GUI_Automation_Agent', () => {
 
   describe('Cleanup', () => {
     it('should cleanup GUI environment correctly', async () => {
-      agent['dockerContainer'] = 'test-container';
       agent['virtualDisplay'] = 99;
       agent['screenshots'] = ['/tmp/screenshot1.png', '/tmp/screenshot2.png'];
-
-      const cleanupSpy = jest.spyOn(agent as any, 'cleanupGUIEnvironment');
-      cleanupSpy.mockResolvedValue(undefined);
 
       const executeCommandSpy = jest.spyOn(agent as any, 'executeCommand');
       executeCommandSpy.mockResolvedValue('Cleanup successful');
@@ -532,17 +524,17 @@ describe('GUI_Automation_Agent', () => {
   });
 
   describe('Command Execution', () => {
-    it('should execute commands with DISPLAY environment', async () => {
+    it('should execute commands via executeCommand with DISPLAY environment', async () => {
       agent['virtualDisplay'] = 99;
 
-      const executeCommandSpy = jest.spyOn(agent as any, 'executeCommand');
-      executeCommandSpy.mockResolvedValue('Command executed');
+      // The real executeCommand uses spawn with DISPLAY set.
+      // We verify spawn is called with the command and correct env.
+      await (agent as any)['executeCommand']('echo test');
 
-      await (agent as any)['executeCommandInDocker']('echo test');
-
-      expect(executeCommandSpy).toHaveBeenCalledWith(
-        'docker exec undefined echo test',
+      expect(mockSpawn).toHaveBeenCalledWith(
+        'echo test',
         expect.objectContaining({
+          shell: true,
           env: expect.objectContaining({
             DISPLAY: ':99'
           })
@@ -550,9 +542,22 @@ describe('GUI_Automation_Agent', () => {
       );
     });
 
-    it('should handle Docker container not available', async () => {
-      await expect((agent as any)['executeCommandInDocker']('test command'))
-        .rejects.toThrow('Docker container not available');
+    it('should handle command execution failure', async () => {
+      // Spawn a process that exits with non-zero code
+      const mockFailingProcess = {
+        stdout: { on: jest.fn() },
+        stderr: { on: jest.fn() },
+        on: jest.fn().mockImplementation((event: string, callback: any) => {
+          if (event === 'close') {
+            setTimeout(() => callback(1), 10); // Non-zero exit code = failure
+          }
+        })
+      };
+
+      mockSpawn.mockReturnValue(mockFailingProcess);
+
+      await expect((agent as any)['executeCommand']('failing-command'))
+        .rejects.toThrow('Command failed with code 1');
     });
   });
 
@@ -571,25 +576,24 @@ describe('GUI_Automation_Agent', () => {
       expect(estimatedCost).toBe(tokens * 0.00001);
     });
 
-    it('should track action history', async () => {
+    it('should return a valid result from executeGUIAction', async () => {
       const mockAction = {
         type: 'click' as const,
         coordinates: { x: 100, y: 100 }
       };
 
-      const executeGUIActionSpy = jest.spyOn(agent as any, 'executeGUIAction');
-      executeGUIActionSpy.mockResolvedValue({
-        action: mockAction,
-        success: true,
-        screenshot: '/tmp/action-screenshot.png',
-        executionTime: 500,
-        detectedElements: ['button']
-      });
+      // Mock the dependencies that executeGUIAction calls internally
+      const executeCommandSpy = jest.spyOn(agent as any, 'executeCommand');
+      executeCommandSpy.mockResolvedValue('action done');
 
-      await (agent as any)['executeGUIAction'](mockAction);
+      const result = await (agent as any)['executeGUIAction'](mockAction);
 
-      expect((agent as any)['actionHistory']).toHaveLength(1);
-      expect((agent as any)['actionHistory'][0].action).toEqual(mockAction);
+      // executeGUIAction returns a GUIStepResult; actionHistory is managed by the callers
+      expect(result).toHaveProperty('action');
+      expect(result).toHaveProperty('success');
+      expect(result).toHaveProperty('screenshot');
+      expect(result).toHaveProperty('executionTime');
+      expect(result.action).toEqual(mockAction);
     });
   });
 

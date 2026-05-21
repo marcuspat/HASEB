@@ -91,7 +91,19 @@ describe('SWE_Bench_Agent', () => {
     mockEvaluationModel.updateStatusWithTime = jest.fn().mockResolvedValue(true);
     mockEvaluationModel.updateMetrics = jest.fn().mockResolvedValue(true);
     mockEvaluationModel.addLogs = jest.fn().mockResolvedValue(true);
-    mockEvaluationModel.findById = jest.fn().mockResolvedValue(null);
+    mockEvaluationModel.findById = jest.fn().mockResolvedValue({
+      id: 'eval-123',
+      agentId: mockConfig.agentId,
+      benchmarkId: mockConfig.benchmarkId,
+      status: 'completed',
+      configuration: mockConfig.configuration,
+      logs: [],
+      metrics: {},
+      startTime: new Date(),
+      endTime: new Date(),
+      createdAt: new Date(),
+      updatedAt: new Date()
+    });
 
     // Mock child_process.spawn
     const mockChildProcess = {
@@ -143,15 +155,12 @@ describe('SWE_Bench_Agent', () => {
 
   describe('Docker Environment Setup', () => {
     it('should setup Docker environment correctly', async () => {
-      // Mock the agent's protected methods for testing
-      const setupDockerEnvSpy = jest.spyOn(agent as any, 'setupDockerEnvironment');
-      setupDockerEnvSpy.mockResolvedValue(undefined);
+      // Call setupDockerEnvironment directly, mocking only its sub-dependencies
+      // (let executeCommand call through to mockSpawn so we can verify it)
+      jest.spyOn(agent as any, 'waitForDockerReady').mockResolvedValue(undefined);
+      jest.spyOn(agent as any, 'setupPythonEnvironment').mockResolvedValue(undefined);
 
-      // Mock the executeTasks method to focus on environment setup
-      const executeTasksSpy = jest.spyOn(agent as any, 'executeTasks');
-      executeTasksSpy.mockResolvedValue(undefined);
-
-      await agent.execute();
+      await (agent as any)['setupDockerEnvironment']();
 
       expect(mockFs.mkdir).toHaveBeenCalledWith('/tmp/test-swe-bench', { recursive: true });
       expect(mockSpawn).toHaveBeenCalledWith(
@@ -238,9 +247,7 @@ describe('SWE_Bench_Agent', () => {
 
   describe('Repository Operations', () => {
     it('should clone repositories correctly', async () => {
-      const cloneRepoSpy = jest.spyOn(agent as any, 'cloneRepository');
-      cloneRepoSpy.mockResolvedValue(undefined);
-
+      // Spy without replacing the implementation so the real code runs
       const executeCommandInDockerSpy = jest.spyOn(agent as any, 'executeCommandInDocker');
       executeCommandInDockerSpy.mockResolvedValue('Cloned successfully');
 
@@ -325,9 +332,7 @@ test_another.py ..
     it('should apply patches correctly', async () => {
       const mockPatch = 'diff --git a/test.py b/test.py\n+++ b/test.py\n@@ -1,3 +1,3 @@\n-def old_function():\n+def new_function():\n     return True';
 
-      const applyPatchSpy = jest.spyOn(agent as any, 'applyPatch');
-      applyPatchSpy.mockResolvedValue(true);
-
+      // Spy without replacing implementation so the real writeFile call goes through
       const executeCommandInDockerSpy = jest.spyOn(agent as any, 'executeCommandInDocker');
       executeCommandInDockerSpy.mockResolvedValue('Patch applied successfully');
 
@@ -343,8 +348,19 @@ test_another.py ..
 
   describe('Command Execution', () => {
     it('should execute commands correctly', async () => {
-      const executeCommandSpy = jest.spyOn(agent as any, 'executeCommand');
-      executeCommandSpy.mockResolvedValue('Command executed successfully');
+      // Set up child process mock to emit stdout data so we can verify real spawn call
+      const mockChildWithData = {
+        stdout: {
+          on: jest.fn().mockImplementation((event: string, cb: any) => {
+            if (event === 'data') cb(Buffer.from('Command executed successfully'));
+          })
+        },
+        stderr: { on: jest.fn() },
+        on: jest.fn().mockImplementation((event: string, cb: any) => {
+          if (event === 'close') setTimeout(() => cb(0), 10);
+        })
+      };
+      mockSpawn.mockReturnValueOnce(mockChildWithData);
 
       const result = await (agent as any)['executeCommand']('echo "test"');
 
@@ -389,9 +405,7 @@ test_another.py ..
       agent['dockerContainer'] = 'test-container';
       agent['workspacePath'] = '/tmp/test-workspace';
 
-      const cleanupSpy = jest.spyOn(agent as any, 'cleanupDockerEnvironment');
-      cleanupSpy.mockResolvedValue(undefined);
-
+      // Mock the dependency (executeCommand), not the method under test
       const executeCommandSpy = jest.spyOn(agent as any, 'executeCommand');
       executeCommandSpy.mockResolvedValue('Cleanup successful');
 

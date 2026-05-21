@@ -45,13 +45,15 @@ export class TestDatabase {
 
   public async cleanup(): Promise<void> {
     try {
+      // Order respects FK constraints: child tables first
       const tables = [
+        'tasks',
+        'metric_sets',
+        'evaluation_states',
         'evaluations',
         'agents',
         'benchmarks',
         'users',
-        'evaluation_metrics',
-        'agent_metrics'
       ];
 
       for (const table of tables) {
@@ -91,16 +93,20 @@ export class TestDatabase {
   private async seedUsers(): Promise<void> {
     const users = [
       {
-        id: 'user-1',
+        id: '00000000-0000-0000-0000-000000000001',
         email: 'test@example.com',
+        username: 'testadmin',
+        full_name: 'Test Admin',
         password_hash: 'hashed_password',
         role: 'admin',
         created_at: new Date(),
         updated_at: new Date(),
       },
       {
-        id: 'user-2',
+        id: '00000000-0000-0000-0000-000000000002',
         email: 'user@example.com',
+        username: 'testuser',
+        full_name: 'Test User',
         password_hash: 'hashed_password',
         role: 'user',
         created_at: new Date(),
@@ -110,17 +116,17 @@ export class TestDatabase {
 
     for (const user of users) {
       await this.db.query(`
-        INSERT INTO users (id, email, password_hash, role, created_at, updated_at)
-        VALUES ($1, $2, $3, $4, $5, $6)
+        INSERT INTO users (id, email, username, full_name, password_hash, role, created_at, updated_at)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
         ON CONFLICT (id) DO NOTHING
-      `, [user.id, user.email, user.password_hash, user.role, user.created_at, user.updated_at]);
+      `, [user.id, user.email, user.username, user.full_name, user.password_hash, user.role, user.created_at, user.updated_at]);
     }
   }
 
   private async seedAgents(): Promise<void> {
     const agents = [
       {
-        id: 'agent-1',
+        id: '00000000-0000-0000-0000-000000000011',
         name: 'Code Master',
         type: 'swe',
         status: 'active',
@@ -131,7 +137,7 @@ export class TestDatabase {
         updated_at: new Date(),
       },
       {
-        id: 'agent-2',
+        id: '00000000-0000-0000-0000-000000000012',
         name: 'GUI Navigator',
         type: 'gui',
         status: 'active',
@@ -165,28 +171,22 @@ export class TestDatabase {
   private async seedBenchmarks(): Promise<void> {
     const benchmarks = [
       {
-        id: 'benchmark-1',
+        id: '00000000-0000-0000-0000-000000000021',
         name: 'SWE-Bench Lite',
         type: 'swe-bench',
         description: 'Lightweight software engineering benchmark',
-        total_tasks: 25,
-        completed_tasks: 20,
-        difficulty: 'medium',
+        dataset: 'swe-bench-lite-v1',
         is_active: true,
-        last_run: new Date(),
         created_at: new Date(),
         updated_at: new Date(),
       },
       {
-        id: 'benchmark-2',
+        id: '00000000-0000-0000-0000-000000000022',
         name: 'GUI Test Suite',
         type: 'osworld',
         description: 'GUI automation testing benchmark',
-        total_tasks: 15,
-        completed_tasks: 12,
-        difficulty: 'easy',
+        dataset: 'osworld-v1',
         is_active: true,
-        last_run: new Date(),
         created_at: new Date(),
         updated_at: new Date(),
       },
@@ -194,19 +194,16 @@ export class TestDatabase {
 
     for (const benchmark of benchmarks) {
       await this.db.query(`
-        INSERT INTO benchmarks (id, name, type, description, total_tasks, completed_tasks, difficulty, is_active, last_run, created_at, updated_at)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+        INSERT INTO benchmarks (id, name, type, description, dataset, is_active, created_at, updated_at)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
         ON CONFLICT (id) DO NOTHING
       `, [
         benchmark.id,
         benchmark.name,
         benchmark.type,
         benchmark.description,
-        benchmark.total_tasks,
-        benchmark.completed_tasks,
-        benchmark.difficulty,
+        benchmark.dataset,
         benchmark.is_active,
-        benchmark.last_run,
         benchmark.created_at,
         benchmark.updated_at,
       ]);
@@ -216,11 +213,10 @@ export class TestDatabase {
   private async seedEvaluations(): Promise<void> {
     const evaluations = [
       {
-        id: 'eval-1',
-        agent_id: 'agent-1',
-        benchmark_id: 'benchmark-1',
+        id: '00000000-0000-0000-0000-000000000031',
+        agent_id: '00000000-0000-0000-0000-000000000011',
+        benchmark_id: '00000000-0000-0000-0000-000000000021',
         status: 'completed',
-        progress: 100,
         metrics: {
           taskSuccessRate: 0.92,
           executionTime: 1800,
@@ -235,7 +231,6 @@ export class TestDatabase {
         },
         start_time: new Date(Date.now() - 3600000),
         end_time: new Date(),
-        error: null,
         created_at: new Date(),
         updated_at: new Date(),
       },
@@ -243,19 +238,17 @@ export class TestDatabase {
 
     for (const evaluation of evaluations) {
       await this.db.query(`
-        INSERT INTO evaluations (id, agent_id, benchmark_id, status, progress, metrics, start_time, end_time, error, created_at, updated_at)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+        INSERT INTO evaluations (id, agent_id, benchmark_id, status, metrics, start_time, end_time, created_at, updated_at)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
         ON CONFLICT (id) DO NOTHING
       `, [
         evaluation.id,
         evaluation.agent_id,
         evaluation.benchmark_id,
         evaluation.status,
-        evaluation.progress,
         JSON.stringify(evaluation.metrics),
         evaluation.start_time,
         evaluation.end_time,
-        evaluation.error,
         evaluation.created_at,
         evaluation.updated_at,
       ]);

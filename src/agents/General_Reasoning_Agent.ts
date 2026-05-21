@@ -111,7 +111,7 @@ export class General_Reasoning_Agent extends BaseExecutionAgent {
 
       let completedTasks = 0;
       for (const task of tasks) {
-        if (!this.isRunning) break;
+        if (!this._running) break;
 
         this.currentTask = task;
         this.reasoningSteps = [];

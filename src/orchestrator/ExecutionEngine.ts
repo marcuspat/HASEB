@@ -232,9 +232,13 @@ export class ExecutionEngine extends EventEmitter {
     const tasks: BenchmarkTask[] = [];
 
     for (let i = 1; i <= taskCount; i++) {
+      const testTypes = ['code-generation', 'reasoning', 'gui-automation'];
+      const taskType = configuration.testMode
+        ? testTypes[(i - 1) % testTypes.length]
+        : (benchmark.type || 'custom');
       tasks.push({
         id: `custom-${benchmark.id}-${i}`,
-        type: benchmark.type || 'custom',
+        type: taskType,
         description: `Custom evaluation task ${i}`,
         input: configuration.taskInput || {},
         expectedOutput: configuration.expectedOutput || {},
@@ -345,6 +349,11 @@ export class ExecutionEngine extends EventEmitter {
     }
   }
 
+  private async simulationDelay(minMs: number, maxMs: number, config: ExecutionConfig): Promise<void> {
+    if (config.configuration?.testMode) return;
+    await new Promise(resolve => setTimeout(resolve, Math.random() * (maxMs - minMs) + minMs));
+  }
+
   private async executeTaskByType(
     task: BenchmarkTask,
     agent: any,
@@ -380,7 +389,7 @@ export class ExecutionEngine extends EventEmitter {
 
     try {
       // Simulate agent processing time
-      await new Promise(resolve => setTimeout(resolve, Math.random() * 10000 + 5000));
+      await this.simulationDelay(5000, 15000, config);
 
       // Simulate code generation result
       const success = Math.random() > 0.2; // 80% success rate
@@ -429,7 +438,7 @@ export class ExecutionEngine extends EventEmitter {
     this.taskTimeouts.set(taskId, timeout);
 
     try {
-      await new Promise(resolve => setTimeout(resolve, Math.random() * 15000 + 5000));
+      await this.simulationDelay(5000, 20000, config);
 
       const success = Math.random() > 0.15; // 85% success rate
 
@@ -482,7 +491,7 @@ export class ExecutionEngine extends EventEmitter {
     this.taskTimeouts.set(taskId, timeout);
 
     try {
-      await new Promise(resolve => setTimeout(resolve, Math.random() * 30000 + 10000));
+      await this.simulationDelay(10000, 40000, config);
 
       const success = Math.random() > 0.25; // 75% success rate
 
@@ -536,7 +545,7 @@ export class ExecutionEngine extends EventEmitter {
     this.taskTimeouts.set(taskId, timeout);
 
     try {
-      await new Promise(resolve => setTimeout(resolve, Math.random() * 25000 + 10000));
+      await this.simulationDelay(10000, 35000, config);
 
       const success = Math.random() > 0.2; // 80% success rate
 
@@ -589,7 +598,7 @@ export class ExecutionEngine extends EventEmitter {
     this.taskTimeouts.set(taskId, timeout);
 
     try {
-      await new Promise(resolve => setTimeout(resolve, Math.random() * 20000 + 10000));
+      await this.simulationDelay(10000, 30000, config);
 
       const success = Math.random() > 0.1; // 90% success rate
 
@@ -641,7 +650,7 @@ export class ExecutionEngine extends EventEmitter {
     this.taskTimeouts.set(taskId, timeout);
 
     try {
-      await new Promise(resolve => setTimeout(resolve, Math.random() * 15000 + 5000));
+      await this.simulationDelay(5000, 20000, config);
 
       const success = Math.random() > 0.2;
 

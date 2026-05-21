@@ -84,7 +84,7 @@ export class GUI_Automation_Agent extends BaseExecutionAgent {
 
       let completedTasks = 0;
       for (const task of tasks) {
-        if (!this.isRunning) break;
+        if (!this._running) break;
 
         this.currentTask = task;
         this.stepCount = 0;
@@ -354,7 +354,7 @@ export class GUI_Automation_Agent extends BaseExecutionAgent {
 
       // Process instructions
       for (let i = 0; i < task.instructions.length; i++) {
-        if (!this.isRunning || this.stepCount >= this.maxSteps) break;
+        if (!this._running || this.stepCount >= this.maxSteps) break;
 
         const instruction = task.instructions[i];
         this.log(`Executing instruction ${i + 1}: ${instruction}`);
@@ -441,7 +441,7 @@ export class GUI_Automation_Agent extends BaseExecutionAgent {
 
       // Process instructions similar to web task
       for (let i = 0; i < task.instructions.length; i++) {
-        if (!this.isRunning || this.stepCount >= this.maxSteps) break;
+        if (!this._running || this.stepCount >= this.maxSteps) break;
 
         const instruction = task.instructions[i];
         this.log(`Executing desktop instruction ${i + 1}: ${instruction}`);

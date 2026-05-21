@@ -14,7 +14,7 @@ jest.unstable_mockModule('@langchain/langgraph', () => ({
     addConditionalEdges: jest.fn().mockReturnThis(),
     setEntryPoint: jest.fn().mockReturnThis(),
     compile: jest.fn().mockReturnValue({
-      invoke: jest.fn().mockResolvedValue({}),
+      invoke: jest.fn().mockImplementation((state: any) => Promise.resolve({ ...state })),
       stream: jest.fn().mockReturnValue({
         [Symbol.asyncIterator]: () => ({
           next: jest.fn().mockResolvedValue({ done: true, value: undefined }),

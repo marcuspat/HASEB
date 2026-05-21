@@ -212,12 +212,14 @@ describe('EvaluationOrchestrator', () => {
   describe('initialization', () => {
     it('should initialize with default configuration', () => {
       expect(orchestrator).toBeDefined();
-      expect(EvaluationQueue).toHaveBeenCalledTimes(1);
-      expect(WebSocketManager).toHaveBeenCalledTimes(1);
-      expect(EnvironmentManager).toHaveBeenCalledTimes(1);
-      expect(MetricsCollector).toHaveBeenCalledTimes(1);
-      expect(ExecutionEngine).toHaveBeenCalledTimes(1);
-      expect(ErrorHandler).toHaveBeenCalledTimes(1);
+      // beforeEach creates each mock instance once (to capture it) and the constructor
+      // creates another, so each mock constructor is called twice total.
+      expect(EvaluationQueue).toHaveBeenCalledTimes(2);
+      expect(WebSocketManager).toHaveBeenCalledTimes(2);
+      expect(EnvironmentManager).toHaveBeenCalledTimes(2);
+      expect(MetricsCollector).toHaveBeenCalledTimes(2);
+      expect(ExecutionEngine).toHaveBeenCalledTimes(2);
+      expect(ErrorHandler).toHaveBeenCalledTimes(2);
     });
 
     it('should initialize with custom configuration', () => {
