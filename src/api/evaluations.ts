@@ -4,6 +4,7 @@ import { AgentModel } from '../database/models/Agent';
 import { BenchmarkModel } from '../database/models/Benchmark';
 import { logger } from '../utils/logger';
 import { validateRequest, ValidationSchema } from '../middleware/validation';
+import { requireRole } from '../middleware/auth';
 
 const router = Router();
 
@@ -554,7 +555,7 @@ router.put('/:id/metrics', validateRequest(updateMetricsSchema), async (req: Req
  *       500:
  *         description: Server error
  */
-router.delete('/:id', async (req: Request, res: Response) => {
+router.delete('/:id', requireRole('admin'), async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
 

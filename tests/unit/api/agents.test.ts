@@ -38,6 +38,13 @@ jest.unstable_mockModule('@/middleware/requestLogger', () => ({
   logApiCall: (_req: any, _res: any, next: any) => next(),
 }));
 
+// Auth is out of scope for the isolated router test: stub the middleware so it
+// neither enforces roles nor pulls in the real UserModel/DB connection.
+jest.unstable_mockModule('@/middleware/auth', () => ({
+  authenticateToken: (_req: any, _res: any, next: any) => next(),
+  requireRole: () => (_req: any, _res: any, next: any) => next(),
+}));
+
 // Validation is mocked as a permissive pass-through: it sets pagination and
 // lets every request through so we can assert the router's handler logic in
 // isolation. (Validation rules themselves are covered by validation.test.ts.)

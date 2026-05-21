@@ -97,6 +97,29 @@ describe('Authentication Security Tests', () => {
     });
   });
 
+  describe('Role-Based Access Control', () => {
+    test('should forbid non-admin users from destructive operations', async () => {
+      const viewer = await createTestUserAndToken('user');
+
+      const response = await request(app)
+        .delete(`/api/agents/${UNKNOWN_UUID}`)
+        .set('Authorization', `Bearer ${viewer.token}`)
+        .expect(403);
+
+      expect(response.body.success).toBe(false);
+      expect(response.body.error.code).toBe('FORBIDDEN');
+    });
+
+    test('should allow admin users to reach destructive operations', async () => {
+      // Admin passes the role gate; the (random) id simply isn't found.
+      const response = await request(app)
+        .delete(`/api/agents/${UNKNOWN_UUID}`)
+        .set('Authorization', `Bearer ${authToken}`);
+
+      expect([204, 404]).toContain(response.status);
+    });
+  });
+
   describe('Login Flow', () => {
     test('should issue a token for valid credentials', async () => {
       const email = `login_${Date.now()}@test.com`;

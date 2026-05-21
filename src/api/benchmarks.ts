@@ -3,6 +3,7 @@ import { asyncHandler } from '../middleware/errorHandler';
 import { validateRequest, extractPagination, commonSchemas, ValidationSchema, ValidationRule } from '../middleware/validation';
 import { BenchmarkModel } from '../database/models/Benchmark';
 import { logApiCall } from '../middleware/requestLogger';
+import { requireRole } from '../middleware/auth';
 import { ApiResponse } from '../types/index';
 
 const router = express.Router();
@@ -562,6 +563,7 @@ router.patch('/:id/activate',
  */
 router.delete('/:id',
   logApiCall,
+  requireRole('admin'),
   validateRequest(commonSchemas.id as ValidationSchema),
   asyncHandler(async (req: express.Request, res: express.Response) => {
     const { id } = req.params;
