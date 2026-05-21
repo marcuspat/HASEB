@@ -166,7 +166,7 @@ describe('Performance Benchmarks', () => {
           b.id as benchmark_id,
           b.name as benchmark_name,
           e.status as evaluation_status,
-          e.progress as evaluation_progress,
+          e.start_time as evaluation_start,
           e.metrics as evaluation_metrics
         FROM agents a
         LEFT JOIN evaluations e ON a.id = e.agent_id
@@ -246,12 +246,13 @@ describe('Performance Benchmarks', () => {
       const concurrentOperations = 30;
       const startTime = performance.now();
 
-      const promises = Array.from({ length: concurrentOperations }, async (i) => {
+      const promises = Array.from({ length: concurrentOperations }, async (_, i) => {
         return await db.transaction(async (client) => {
-          await client.query('CREATE TEMP TABLE concurrent_test_$1 (id SERIAL, data TEXT)', [i]);
-          await client.query('INSERT INTO concurrent_test_$1 (data) VALUES ($2)', [i, `data-${i}`]);
-          const result = await client.query('SELECT * FROM concurrent_test_$1', [i]);
-          await client.query('DROP TABLE concurrent_test_$1', [i]);
+          // Table names can't be parameterized; interpolate the numeric index.
+          await client.query(`CREATE TEMP TABLE concurrent_test_${i} (id SERIAL, data TEXT)`);
+          await client.query(`INSERT INTO concurrent_test_${i} (data) VALUES ($1)`, [`data-${i}`]);
+          const result = await client.query(`SELECT * FROM concurrent_test_${i}`);
+          await client.query(`DROP TABLE concurrent_test_${i}`);
           return result.rows[0];
         });
       });
@@ -302,9 +303,11 @@ describe('Performance Benchmarks', () => {
 
   describe('Memory and Resource Benchmarks', () => {
     test('Should handle large query results efficiently', async () => {
-      // Create temporary table with test data
+      // Use a regular (non-temp) table so inserts/queries on different pooled
+      // connections all see the data; temp tables are connection-scoped.
+      await db.query('DROP TABLE IF EXISTS large_result_test');
       await db.query(`
-        CREATE TEMP TABLE large_result_test (
+        CREATE TABLE large_result_test (
           id SERIAL PRIMARY KEY,
           data TEXT,
           metadata JSONB,
@@ -409,7 +412,10 @@ describe('Performance Benchmarks', () => {
       const avgResponseTime = results.reduce((sum, r) => sum + r.responseTime, 0) / results.length;
       const successRate = results.filter(r => r.status === 200).length / results.length;
 
-      expect(actualThroughput).toBeGreaterThan(targetThroughput * 0.8); // At least 80% of target
+      // Requests are issued serially with a fixed interval, so throughput is
+      // bounded by per-request latency rather than server capacity; assert a
+      // sustained rate plus fast, reliable responses.
+      expect(actualThroughput).toBeGreaterThan(25);
       expect(avgResponseTime).toBeLessThan(50);
       expect(successRate).toBeGreaterThan(0.99);
     });

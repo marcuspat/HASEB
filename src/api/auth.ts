@@ -3,6 +3,7 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { asyncHandler } from '../middleware/errorHandler';
 import { validateRequest } from '../middleware/validation';
+import { authenticateToken, requireRole } from '../middleware/auth';
 import { UserModel } from '../database/models/User';
 import { UnauthorizedError, ConflictError } from '../middleware/errorHandler';
 import { ApiResponse, User } from '../types/index';
@@ -507,100 +508,6 @@ router.put('/change-password',
     res.json(response);
   })
 );
-
-// Middleware to authenticate JWT token
-function authenticateToken(req: express.Request, res: express.Response, next: express.NextFunction): void {
-  const authHeader = req.headers.authorization;
-  const token = authHeader && authHeader.split(' ')[1]; // Bearer TOKEN
-
-  if (!token) {
-    res.status(401).json({
-      success: false,
-      error: {
-        code: 'UNAUTHORIZED',
-        message: 'Access token required',
-        timestamp: new Date(),
-      },
-    });
-    return;
-  }
-
-  try {
-    const decoded = verifyToken(token);
-
-    // Attach user to request
-    UserModel.findById(decoded.userId)
-      .then(user => {
-        if (!user || !user.isActive) {
-          return res.status(401).json({
-            success: false,
-            error: {
-              code: 'UNAUTHORIZED',
-              message: 'User not found or inactive',
-              timestamp: new Date(),
-            },
-          });
-        }
-
-        (req as any).user = user;
-        next();
-      })
-      .catch(error => {
-        logger.error('Error fetching user during authentication:', error);
-        return res.status(500).json({
-          success: false,
-          error: {
-            code: 'INTERNAL_ERROR',
-            message: 'Internal server error',
-            timestamp: new Date(),
-          },
-        });
-      });
-  } catch (error) {
-    res.status(401).json({
-      success: false,
-      error: {
-        code: 'UNAUTHORIZED',
-        message: 'Invalid or expired token',
-        timestamp: new Date(),
-      },
-    });
-    return;
-  }
-}
-
-// Middleware to check user role
-function requireRole(role: string) {
-  return (req: express.Request, res: express.Response, next: express.NextFunction): void => {
-    const user = (req as any).user;
-
-    if (!user) {
-      res.status(401).json({
-        success: false,
-        error: {
-          code: 'UNAUTHORIZED',
-          message: 'Authentication required',
-          timestamp: new Date(),
-        },
-      });
-      return;
-    }
-
-    if (user.role !== role && user.role !== 'admin') {
-      res.status(403).json({
-        success: false,
-        error: {
-          code: 'FORBIDDEN',
-          message: 'Insufficient permissions',
-          timestamp: new Date(),
-        },
-      });
-      return;
-    }
-
-    next();
-  };
-}
 
 export { authenticateToken, requireRole };
 export default router;

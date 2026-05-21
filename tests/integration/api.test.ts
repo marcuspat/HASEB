@@ -5,12 +5,14 @@ import app from '@/server';
 import { db } from '@/database/connection';
 import { logger } from '@/utils/logger';
 import { TestDatabase } from '../helpers/test-db';
+import { createTestUserAndToken } from '../helpers/auth';
 
 // Well-formed v4 UUID that will not exist in the database.
 const UNKNOWN_UUID = '11111111-1111-4111-8111-111111111111';
 
 describe('API Integration Tests', () => {
   let testDb: TestDatabase;
+  let auth: string; // "Bearer <token>" for protected data routes
 
   beforeAll(async () => {
     // Ensures the (shared) test database is migrated and reachable. The HTTP
@@ -18,6 +20,9 @@ describe('API Integration Tests', () => {
     // PostgreSQL test database via .env.test.
     testDb = TestDatabase.getInstance();
     await testDb.initialize();
+
+    const user = await createTestUserAndToken('admin');
+    auth = `Bearer ${user.token}`;
   });
 
   afterAll(async () => {
@@ -102,6 +107,7 @@ describe('API Integration Tests', () => {
       const response = await request(app)
         .get('/api/agents')
         .set('Origin', 'http://localhost:3000')
+        .set('Authorization', auth)
         .expect(200);
 
       expect(response.headers['access-control-allow-origin']).toBeDefined();
@@ -111,7 +117,7 @@ describe('API Integration Tests', () => {
   describe('Rate Limiting', () => {
     it('should allow a normal request rate', async () => {
       const responses = await Promise.all(
-        Array.from({ length: 5 }, () => request(app).get('/api/agents'))
+        Array.from({ length: 5 }, () => request(app).get('/api/agents').set('Authorization', auth))
       );
 
       responses.forEach((response) => {
@@ -123,7 +129,7 @@ describe('API Integration Tests', () => {
       // The test environment allows 1000 requests / 15 min, so a modest burst
       // must not be rate limited.
       const responses = await Promise.all(
-        Array.from({ length: 30 }, () => request(app).get('/api/agents'))
+        Array.from({ length: 30 }, () => request(app).get('/api/agents').set('Authorization', auth))
       );
 
       const throttled = responses.filter((r) => r.status === 429);
@@ -146,6 +152,7 @@ describe('API Integration Tests', () => {
       const response = await request(app)
         .get('/api/metrics/dashboard')
         .set('Accept-Encoding', 'gzip')
+        .set('Authorization', auth)
         .expect(200);
 
       expect(response.headers['content-encoding']).toBe('gzip');
@@ -193,7 +200,7 @@ describe('API Integration Tests', () => {
     it('should log API requests', async () => {
       const logSpy = jest.spyOn(logger, 'info');
 
-      await request(app).get('/api/agents').expect(200);
+      await request(app).get('/api/agents').set('Authorization', auth).expect(200);
 
       expect(logSpy).toHaveBeenCalled();
     });
@@ -203,6 +210,7 @@ describe('API Integration Tests', () => {
 
       await request(app)
         .get('/api/agents')
+        .set('Authorization', auth)
         .set('User-Agent', 'test-agent')
         .expect(200);
 
@@ -213,9 +221,19 @@ describe('API Integration Tests', () => {
     });
   });
 
-  describe('Public Endpoint Access', () => {
-    it('should serve the agents collection without authentication', async () => {
-      const response = await request(app).get('/api/agents').expect(200);
+  describe('Authentication', () => {
+    it('should reject access to protected routes without a token', async () => {
+      const response = await request(app).get('/api/agents').expect(401);
+
+      expect(response.body.success).toBe(false);
+      expect(response.body.error.code).toBe('UNAUTHORIZED');
+    });
+
+    it('should serve the agents collection with a valid token', async () => {
+      const response = await request(app)
+        .get('/api/agents')
+        .set('Authorization', auth)
+        .expect(200);
 
       expect(response.body.success).toBe(true);
       expect(response.body.data).toBeDefined();
@@ -225,7 +243,7 @@ describe('API Integration Tests', () => {
   describe('Database Integration', () => {
     it('should maintain database connection across concurrent requests', async () => {
       const responses = await Promise.all(
-        Array.from({ length: 10 }, () => request(app).get('/api/agents'))
+        Array.from({ length: 10 }, () => request(app).get('/api/agents').set('Authorization', auth))
       );
 
       responses.forEach((response) => {
@@ -236,6 +254,7 @@ describe('API Integration Tests', () => {
     it('should return 404 for a non-existent agent id', async () => {
       const response = await request(app)
         .get(`/api/agents/${UNKNOWN_UUID}`)
+        .set('Authorization', auth)
         .expect(404);
 
       expect(response.body.success).toBe(false);
@@ -246,7 +265,9 @@ describe('API Integration Tests', () => {
     it('should handle concurrent requests efficiently', async () => {
       const startTime = Date.now();
 
-      await Promise.all(Array.from({ length: 20 }, () => request(app).get('/api/agents')));
+      await Promise.all(
+        Array.from({ length: 20 }, () => request(app).get('/api/agents').set('Authorization', auth))
+      );
 
       const duration = Date.now() - startTime;
       expect(duration).toBeLessThan(5000);

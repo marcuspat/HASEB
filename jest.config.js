@@ -13,11 +13,6 @@ export default {
     '/node_modules/',
     '/dist/',
     '<rootDir>/tests/e2e/',
-    // Performance/security suites also depend on TestDatabase + live DB.
-    '<rootDir>/tests/performance/benchmark.test.ts',
-    '<rootDir>/tests/performance/load.test.ts',
-    '<rootDir>/tests/security/auth.test.ts',
-    '<rootDir>/tests/security/api-security.test.ts',
   ],
   transform: {
     '^.+\\.tsx?$': ['ts-jest', {

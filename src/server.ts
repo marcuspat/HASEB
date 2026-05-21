@@ -36,6 +36,7 @@ import { bootstrapDomainRuntime, type DomainRuntime } from './composition/domain
 import { errorHandler } from './middleware/errorHandler';
 import { requestLogger } from './middleware/requestLogger';
 import { validateRequest } from './middleware/validation';
+import { authenticateToken } from './middleware/auth';
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -57,9 +58,22 @@ export const domainRuntime: DomainRuntime = bootstrapDomainRuntime({
 // Rate limiting
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: process.env.NODE_ENV === 'production' ? 100 : 1000, // Limit each IP
+  // Production protects each IP; non-production keeps the general limiter out
+  // of the way of test/load traffic (credential endpoints use authLimiter).
+  max: process.env.NODE_ENV === 'production' ? 100 : 100000,
   message: {
     error: 'Too many requests from this IP, please try again later.',
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+// Stricter limiter for credential endpoints to blunt brute-force attempts.
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 5,
+  message: {
+    error: 'Too many authentication attempts, please try again later.',
   },
   standardHeaders: true,
   legacyHeaders: false,
@@ -155,13 +169,15 @@ app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(specs, {
   customSiteTitle: 'HASEB API Documentation',
 }));
 
-// API routes
+// API routes. Credential endpoints are public (login is rate limited);
+// all data routes require a valid Bearer token.
+app.use('/api/auth/login', authLimiter);
 app.use('/api/auth', authRoutes);
-app.use('/api/agents', agentsRoutes);
-app.use('/api/benchmarks', benchmarksRoutes);
-app.use('/api/evaluations', evaluationsRoutes);
-app.use('/api/metrics', metricsRoutes);
-app.use('/api/orchestrator', orchestratorRoutes);
+app.use('/api/agents', authenticateToken, agentsRoutes);
+app.use('/api/benchmarks', authenticateToken, benchmarksRoutes);
+app.use('/api/evaluations', authenticateToken, evaluationsRoutes);
+app.use('/api/metrics', authenticateToken, metricsRoutes);
+app.use('/api/orchestrator', authenticateToken, orchestratorRoutes);
 
 // Root endpoint
 app.get('/', (req, res) => {

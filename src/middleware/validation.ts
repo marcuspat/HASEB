@@ -53,6 +53,9 @@ export const validateRequest = (schema: ValidationSchema) => {
 
 function validateObject(obj: any, schema: Record<string, ValidationRule>, context: string): string[] {
   const errors: string[] = [];
+  // A missing body/query/params object means every required field is absent;
+  // treat it as empty rather than throwing on property access.
+  obj = obj ?? {};
 
   for (const [key, rule] of Object.entries(schema)) {
     const value = obj[key];
