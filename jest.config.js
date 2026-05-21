@@ -54,6 +54,12 @@ export default {
   setupFiles: ['<rootDir>/tests/polyfills.ts'],
   moduleNameMapper: {
     '^@/(.*)$': '<rootDir>/src/$1',
+    // Root uuid (v13) is ESM-only and the LangChain-bundled uuid (v10) resolves
+    // to its untranspiled esm-browser build under the jsdom environment. The
+    // `transform` config only handles .tsx?, so neither gets transpiled and the
+    // raw `export` tokens crash module load. Force every `uuid` import to the
+    // bundled v10 CommonJS build, which loads without transformation.
+    '^uuid$': '<rootDir>/node_modules/@langchain/langgraph/node_modules/uuid/dist/index.js',
     '^(\\.{1,2}/.*)\\.jsx?$': '$1',
   },
   transformIgnorePatterns: [

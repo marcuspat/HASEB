@@ -26,7 +26,6 @@ import metricsRoutes from './api/metrics';
 import orchestratorRoutes from './api/orchestrator';
 
 // Import orchestrator components
-import { EvaluationOrchestrator } from './orchestrator/EvaluationOrchestrator';
 import { EvaluationQueue } from './orchestrator/EvaluationQueue';
 import { WebSocketManager } from './orchestrator/WebSocketManager';
 
@@ -41,8 +40,11 @@ import { validateRequest } from './middleware/validation';
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Initialize orchestrator components
-export const orchestrator = new EvaluationOrchestrator();
+// Initialize orchestrator components. The orchestrator singleton lives in its
+// own module to avoid a circular import with api/orchestrator.ts; re-export it
+// here to preserve the existing import surface.
+export { orchestrator } from './orchestrator/instance';
+import { orchestrator } from './orchestrator/instance';
 export const wsManager = new WebSocketManager();
 
 // Wire the DDD domain runtime. The WebSocketManager satisfies BroadcasterPort

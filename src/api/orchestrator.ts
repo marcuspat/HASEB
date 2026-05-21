@@ -4,7 +4,7 @@ import { validateRequest, commonSchemas } from '../middleware/validation';
 import { logApiCall } from '../middleware/requestLogger';
 import { ApiResponse } from '../types/index';
 import { logger } from '../utils/logger';
-import { orchestrator } from '../server';
+import { orchestrator } from '../orchestrator/instance';
 
 const router = express.Router();
 
