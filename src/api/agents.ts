@@ -235,6 +235,37 @@ router.get('/types',
  *       404:
  *         description: Agent not found
  */
+/**
+ * @swagger
+ * /api/agents/active:
+ *   get:
+ *     summary: Get all active agents
+ *     tags: [Agents]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: List of active agents
+ */
+router.get('/active',
+  logApiCall,
+  asyncHandler(async (req: express.Request, res: express.Response) => {
+    const agents = await AgentModel.getActiveAgents();
+
+    const response: ApiResponse = {
+      success: true,
+      data: agents,
+      metadata: {
+        timestamp: new Date(),
+        requestId: req.headers['x-request-id'] as string,
+        version: '1.0.0',
+      },
+    };
+
+    res.json(response);
+  })
+);
+
 router.get('/:id',
   logApiCall,
   validateRequest(commonSchemas.id as ValidationSchema),
@@ -537,37 +568,6 @@ router.delete('/:id',
     }
 
     res.status(204).send();
-  })
-);
-
-/**
- * @swagger
- * /api/agents/active:
- *   get:
- *     summary: Get all active agents
- *     tags: [Agents]
- *     security:
- *       - bearerAuth: []
- *     responses:
- *       200:
- *         description: List of active agents
- */
-router.get('/active',
-  logApiCall,
-  asyncHandler(async (req: express.Request, res: express.Response) => {
-    const agents = await AgentModel.getActiveAgents();
-
-    const response: ApiResponse = {
-      success: true,
-      data: agents,
-      metadata: {
-        timestamp: new Date(),
-        requestId: req.headers['x-request-id'] as string,
-        version: '1.0.0',
-      },
-    };
-
-    res.json(response);
   })
 );
 

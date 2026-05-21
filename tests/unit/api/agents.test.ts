@@ -286,19 +286,20 @@ describe('Agents API', () => {
   });
 
   describe('route resolution for /active', () => {
-    // The production router registers GET '/:id' BEFORE GET '/active', so
-    // '/api/agents/active' is matched by the parameterized ':id' route and
-    // resolved via findById('active') rather than getActiveAgents(). This test
-    // documents and locks in that genuine routing behavior (the production code
-    // is intentionally not modified here).
-    it('routes GET /api/agents/active through the :id handler', async () => {
-      mockAgentModel.findById.mockResolvedValue(null);
+    // GET '/active' is registered before the parameterized GET '/:id', so it
+    // resolves through getActiveAgents() rather than being shadowed by ':id'.
+    it('routes GET /api/agents/active to getActiveAgents', async () => {
+      const activeAgents = [
+        { id: 'agent-1', name: 'Code Master', type: 'swe', status: 'active' },
+      ];
+      mockAgentModel.getActiveAgents.mockResolvedValue(activeAgents);
 
-      const response = await request(app).get('/api/agents/active').expect(404);
+      const response = await request(app).get('/api/agents/active').expect(200);
 
-      expect(mockAgentModel.findById).toHaveBeenCalledWith('active');
-      expect(mockAgentModel.getActiveAgents).not.toHaveBeenCalled();
-      expect(response.body.error.code).toBe('NOT_FOUND');
+      expect(mockAgentModel.getActiveAgents).toHaveBeenCalled();
+      expect(mockAgentModel.findById).not.toHaveBeenCalledWith('active');
+      expect(response.body.success).toBe(true);
+      expect(response.body.data).toEqual(activeAgents);
     });
   });
 
