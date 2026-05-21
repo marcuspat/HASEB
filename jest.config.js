@@ -13,6 +13,15 @@ export default {
     '/node_modules/',
     '/dist/',
     '<rootDir>/tests/e2e/',
+    // Integration tests that require a live PostgreSQL database — run via
+    // `npm run test:integration` with DB_HOST_TEST configured.
+    '<rootDir>/tests/integration/api.test.ts',
+    '<rootDir>/tests/integration/database.test.ts',
+    // Performance/security suites also depend on TestDatabase + live DB.
+    '<rootDir>/tests/performance/benchmark.test.ts',
+    '<rootDir>/tests/performance/load.test.ts',
+    '<rootDir>/tests/security/auth.test.ts',
+    '<rootDir>/tests/security/api-security.test.ts',
   ],
   transform: {
     '^.+\\.tsx?$': ['ts-jest', {

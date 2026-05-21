@@ -4,7 +4,7 @@
   "description": "The Holistic Agentic System Evaluator &amp; Benchmarking Suite",
   "main": "index.js",
   "scripts": {
-    "test": "NODE_OPTIONS='--experimental-vm-modules' jest",
+    "test": "npm run test:unit",
     "test:watch": "NODE_OPTIONS='--experimental-vm-modules' jest --watch",
     "test:coverage": "NODE_OPTIONS='--experimental-vm-modules' jest --coverage",
     "test:backend": "tsx watch --test src/**/*.test.ts",
