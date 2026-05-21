@@ -13,11 +13,6 @@ export default {
     '/node_modules/',
     '/dist/',
     '<rootDir>/tests/e2e/',
-    // Blocked by the nested @langchain/langgraph/node_modules/uuid ESM parse
-    // issue: the suite fails to LOAD (not a schema problem). Also need a live
-    // DB. Excluded from every run until the tooling issue is resolved.
-    '<rootDir>/tests/integration/api.test.ts',
-    '<rootDir>/tests/integration/metrics-system.test.ts',
     // Performance/security suites also depend on TestDatabase + live DB.
     '<rootDir>/tests/performance/benchmark.test.ts',
     '<rootDir>/tests/performance/load.test.ts',

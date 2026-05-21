@@ -138,6 +138,26 @@ export const errorHandler = (
     }
   }
 
+  // Handle library errors that carry their own HTTP status (e.g. body-parser's
+  // PayloadTooLargeError -> 413, JSON parse SyntaxError -> 400). Only applied
+  // when nothing more specific matched above.
+  if (statusCode === 500 && !(error instanceof AppError)) {
+    const libStatus = (error as any).statusCode ?? (error as any).status;
+    if (typeof libStatus === 'number' && libStatus >= 400 && libStatus < 600) {
+      statusCode = libStatus;
+      if (libStatus === 413) {
+        errorCode = 'PAYLOAD_TOO_LARGE';
+        message = 'Request payload too large';
+      } else if (libStatus === 400) {
+        errorCode = 'INVALID_REQUEST';
+        message = 'Invalid request payload';
+      } else {
+        errorCode = 'REQUEST_ERROR';
+        message = error.message;
+      }
+    }
+  }
+
   // Handle JWT errors
   if (error.name === 'JsonWebTokenError') {
     statusCode = 401;

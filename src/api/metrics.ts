@@ -1,6 +1,6 @@
 import express from 'express';
 import { asyncHandler } from '../middleware/errorHandler';
-import { validateRequest, extractPagination, commonSchemas, ValidationSchema, ValidationRule } from '../middleware/validation';
+import { validateRequest } from '../middleware/validation';
 import { EvaluationModel } from '../database/models/Evaluation';
 import { logApiCall } from '../middleware/requestLogger';
 import { ApiResponse } from '../types/index';
@@ -37,7 +37,7 @@ const router = express.Router();
  */
 router.get('/evaluation/:evaluationId',
   logApiCall,
-  validateRequest(commonSchemas.id as ValidationSchema),
+  validateRequest({ params: { evaluationId: { type: 'uuid', required: true } } }),
   asyncHandler(async (req: express.Request, res: express.Response) => {
     const { evaluationId } = req.params;
     const { includeHistory } = req.query;
@@ -105,7 +105,7 @@ router.get('/evaluation/:evaluationId',
 router.get('/agent/:agentId',
   logApiCall,
   validateRequest({
-    params: commonSchemas.id.params as Record<string, ValidationRule>,
+    params: { agentId: { type: 'uuid', required: true } },
     query: {
       days: { type: 'integer', min: 1, max: 365, required: false },
       benchmarkId: { type: 'string', format: 'uuid', required: false },
@@ -169,7 +169,7 @@ router.get('/agent/:agentId',
 router.get('/benchmark/:benchmarkId',
   logApiCall,
   validateRequest({
-    params: commonSchemas.id.params as Record<string, ValidationRule>,
+    params: { benchmarkId: { type: 'uuid', required: true } },
     query: {
       days: { type: 'integer', min: 1, max: 365, required: false },
     },
