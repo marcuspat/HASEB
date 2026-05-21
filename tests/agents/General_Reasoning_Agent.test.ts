@@ -1,13 +1,39 @@
-import { General_Reasoning_Agent, GeneralReasoningConfig } from '@/agents/General_Reasoning_Agent';
-import { BaseExecutionAgent } from '@/agents/BaseExecutionAgent';
+import { describe, it, expect, beforeEach, beforeAll, jest } from '@jest/globals';
+import type { GeneralReasoningConfig } from '@/agents/General_Reasoning_Agent';
 
 // Mock dependencies
-jest.mock('../../src/utils/logger');
+jest.unstable_mockModule('@/utils/logger', () => ({
+  logger: { info: jest.fn(), error: jest.fn(), debug: jest.fn(), warn: jest.fn() }
+}));
 
-const mockLogger = require('../../src/utils/logger');
+jest.unstable_mockModule('@/database/models/Evaluation', () => ({
+  EvaluationModel: {
+    create: jest.fn(),
+    updateStatus: jest.fn(),
+    updateStatusWithTime: jest.fn(),
+    updateMetrics: jest.fn(),
+    addLogs: jest.fn(),
+    findById: jest.fn(),
+  }
+}));
+
+let General_Reasoning_Agent: any;
+let BaseExecutionAgent: any;
+let mockEvaluationModel: any;
+
+beforeAll(async () => {
+  const evalMod = await import('@/database/models/Evaluation');
+  mockEvaluationModel = evalMod.EvaluationModel;
+
+  const graMod = await import('@/agents/General_Reasoning_Agent');
+  General_Reasoning_Agent = graMod.General_Reasoning_Agent;
+
+  const baseMod = await import('@/agents/BaseExecutionAgent');
+  BaseExecutionAgent = baseMod.BaseExecutionAgent;
+});
 
 describe('General_Reasoning_Agent', () => {
-  let agent: General_Reasoning_Agent;
+  let agent: any;
   let mockConfig: GeneralReasoningConfig;
 
   beforeEach(() => {
@@ -27,6 +53,26 @@ describe('General_Reasoning_Agent', () => {
       timeout: 300000,
       maxRetries: 2
     };
+
+    // Mock EvaluationModel methods
+    mockEvaluationModel.create = jest.fn().mockResolvedValue({
+      id: 'eval-123',
+      agentId: mockConfig.agentId,
+      benchmarkId: mockConfig.benchmarkId,
+      status: 'pending',
+      configuration: mockConfig.configuration,
+      logs: [],
+      metrics: null,
+      startTime: new Date(),
+      endTime: undefined,
+      createdAt: new Date(),
+      updatedAt: new Date()
+    });
+    mockEvaluationModel.updateStatus = jest.fn().mockResolvedValue(true);
+    mockEvaluationModel.updateStatusWithTime = jest.fn().mockResolvedValue(true);
+    mockEvaluationModel.updateMetrics = jest.fn().mockResolvedValue(true);
+    mockEvaluationModel.addLogs = jest.fn().mockResolvedValue(true);
+    mockEvaluationModel.findById = jest.fn().mockResolvedValue(null);
 
     agent = new General_Reasoning_Agent(mockConfig);
   });
@@ -100,7 +146,7 @@ describe('General_Reasoning_Agent', () => {
       ]);
 
       const executeTasksSpy = jest.spyOn(agent as any, 'executeTasks');
-      executeTasksSpy.mockImplementation(async function(this: General_Reasoning_Agent) {
+      executeTasksSpy.mockImplementation(async function(this: any) {
         const tasks = await this['loadReasoningTasks']();
         expect(tasks).toHaveLength(2);
         expect(tasks[0].domain).toBe('mathematics');
@@ -518,7 +564,7 @@ describe('General_Reasoning_Agent', () => {
       });
 
       const processTaskSpy = jest.spyOn(agent as any, 'processReasoningTask');
-      processTaskSpy.mockImplementation(async function(this: General_Reasoning_Agent, task) {
+      processTaskSpy.mockImplementation(async function(this: any, task: any) {
         const reasoningResult = await this['executeReasoning'](task, mockPlan);
         const validationResult = await this['validateAnswer'](task, reasoningResult.finalAnswer);
 
@@ -656,7 +702,7 @@ describe('General_Reasoning_Agent', () => {
 
       // Mock the execution to focus on event emission
       const executeTasksSpy = jest.spyOn(agent as any, 'executeTasks');
-      executeTasksSpy.mockImplementation(async function(this: General_Reasoning_Agent) {
+      executeTasksSpy.mockImplementation(async function(this: any) {
         this['log']('Reasoning task execution started');
       });
 
@@ -686,7 +732,7 @@ describe('General_Reasoning_Agent', () => {
       });
 
       const executeTasksSpy = jest.spyOn(agent as any, 'executeTasks');
-      executeTasksSpy.mockImplementation(async function(this: General_Reasoning_Agent) {
+      executeTasksSpy.mockImplementation(async function(this: any) {
         const result = await this['processReasoningTask'](mockTask);
         this['recordTaskCompletion'](result.success, result.tokensUsed, result.cost);
       });

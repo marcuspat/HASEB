@@ -220,7 +220,6 @@ export class EfficiencyMetricsCollector extends BaseMetricCollector {
     this.state.totalSteps++;
 
     logger.debug(`Step started: ${stepId}`);
-    this.emit('step_started', { stepId });
   }
 
   /**

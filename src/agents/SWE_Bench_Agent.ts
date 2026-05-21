@@ -57,13 +57,14 @@ export class SWE_Bench_Agent extends BaseExecutionAgent {
   constructor(config: SWEBenchConfig) {
     super(config);
 
-    this.dockerImage = config.dockerImage || 'haseb/swe-bench:latest';
-    this.workspacePath = config.workspacePath || `/tmp/haseb-swe-bench-${Date.now()}`;
-    this.pythonPath = config.pythonPath || 'python3';
-    this.testCommand = config.testCommand || 'pytest -v --tb=short';
-    this.maxPatchAttempts = config.maxPatchAttempts || 3;
-    this.codeGenModel = config.codeGenModel || 'gpt-4';
-    this.temperature = config.temperature || 0.1;
+    const cfg = config.configuration || {};
+    this.dockerImage = config.dockerImage ?? cfg.dockerImage ?? 'haseb/swe-bench:latest';
+    this.workspacePath = config.workspacePath ?? cfg.workspacePath ?? `/tmp/haseb-swe-bench-${Date.now()}`;
+    this.pythonPath = config.pythonPath ?? cfg.pythonPath ?? 'python3';
+    this.testCommand = config.testCommand ?? cfg.testCommand ?? 'pytest -v --tb=short';
+    this.maxPatchAttempts = config.maxPatchAttempts ?? cfg.maxPatchAttempts ?? 3;
+    this.codeGenModel = config.codeGenModel ?? cfg.codeGenModel ?? 'gpt-4';
+    this.temperature = config.temperature ?? cfg.temperature ?? 0.1;
   }
 
   protected async executeTasks(): Promise<void> {
@@ -591,12 +592,21 @@ index abcdef..123456 100644
   }
 
   private estimateTokens(text: string): number {
-    // Rough estimation: ~4 characters per token
     return Math.ceil(text.length / 4);
   }
 
   private estimateCost(tokens: number): number {
-    // Rough cost estimation (adjust based on actual model pricing)
-    return tokens * 0.00001; // $0.00001 per token
+    return tokens * 0.00001;
+  }
+
+  public override getConfiguration(): Record<string, any> {
+    return {
+      ...this.configuration,
+      dockerImage: this.dockerImage,
+      workspacePath: this.workspacePath,
+      maxPatchAttempts: this.maxPatchAttempts,
+      codeGenModel: this.codeGenModel,
+      temperature: this.temperature,
+    };
   }
 }

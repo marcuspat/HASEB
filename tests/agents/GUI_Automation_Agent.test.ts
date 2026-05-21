@@ -1,24 +1,60 @@
-import { GUI_Automation_Agent, GUIAutomationConfig } from '@/agents/GUI_Automation_Agent';
-import { BaseExecutionAgent } from '@/agents/BaseExecutionAgent';
-import { spawn } from 'child_process';
-import { promises as fs } from 'fs';
+import { describe, it, expect, beforeEach, beforeAll, jest } from '@jest/globals';
+import type { GUIAutomationConfig } from '@/agents/GUI_Automation_Agent';
 
 // Mock dependencies
-jest.mock('child_process');
-jest.mock('fs', () => ({
+jest.unstable_mockModule('child_process', () => ({
+  spawn: jest.fn(),
+}));
+
+jest.unstable_mockModule('fs', () => ({
   promises: {
     mkdir: jest.fn(),
     writeFile: jest.fn(),
     rm: jest.fn(),
-    unlink: jest.fn()
+    unlink: jest.fn(),
   }
 }));
 
-const mockSpawn = spawn as jest.MockedFunction<typeof spawn>;
-const mockFs = fs as jest.Mocked<typeof fs>;
+jest.unstable_mockModule('@/utils/logger', () => ({
+  logger: { info: jest.fn(), error: jest.fn(), debug: jest.fn(), warn: jest.fn() }
+}));
+
+jest.unstable_mockModule('@/database/models/Evaluation', () => ({
+  EvaluationModel: {
+    create: jest.fn(),
+    updateStatus: jest.fn(),
+    updateStatusWithTime: jest.fn(),
+    updateMetrics: jest.fn(),
+    addLogs: jest.fn(),
+    findById: jest.fn(),
+  }
+}));
+
+let GUI_Automation_Agent: any;
+let BaseExecutionAgent: any;
+let mockSpawn: any;
+let mockFs: any;
+let mockEvaluationModel: any;
+
+beforeAll(async () => {
+  const cpMod = await import('child_process');
+  mockSpawn = cpMod.spawn;
+
+  const fsMod = await import('fs');
+  mockFs = (fsMod as any).promises;
+
+  const evalMod = await import('@/database/models/Evaluation');
+  mockEvaluationModel = evalMod.EvaluationModel;
+
+  const guiMod = await import('@/agents/GUI_Automation_Agent');
+  GUI_Automation_Agent = guiMod.GUI_Automation_Agent;
+
+  const baseMod = await import('@/agents/BaseExecutionAgent');
+  BaseExecutionAgent = baseMod.BaseExecutionAgent;
+});
 
 describe('GUI_Automation_Agent', () => {
-  let agent: GUI_Automation_Agent;
+  let agent: any;
   let mockConfig: GUIAutomationConfig;
 
   beforeEach(() => {
@@ -39,18 +75,38 @@ describe('GUI_Automation_Agent', () => {
       maxRetries: 2
     };
 
+    // Mock EvaluationModel methods
+    mockEvaluationModel.create = jest.fn().mockResolvedValue({
+      id: 'eval-123',
+      agentId: mockConfig.agentId,
+      benchmarkId: mockConfig.benchmarkId,
+      status: 'pending',
+      configuration: mockConfig.configuration,
+      logs: [],
+      metrics: null,
+      startTime: new Date(),
+      endTime: undefined,
+      createdAt: new Date(),
+      updatedAt: new Date()
+    });
+    mockEvaluationModel.updateStatus = jest.fn().mockResolvedValue(true);
+    mockEvaluationModel.updateStatusWithTime = jest.fn().mockResolvedValue(true);
+    mockEvaluationModel.updateMetrics = jest.fn().mockResolvedValue(true);
+    mockEvaluationModel.addLogs = jest.fn().mockResolvedValue(true);
+    mockEvaluationModel.findById = jest.fn().mockResolvedValue(null);
+
     // Mock child_process.spawn
     const mockChildProcess = {
       stdout: { on: jest.fn() },
       stderr: { on: jest.fn() },
-      on: jest.fn().mockImplementation((event, callback) => {
+      on: jest.fn().mockImplementation((event: string, callback: any) => {
         if (event === 'close') {
           setTimeout(() => callback(0), 100); // Simulate successful exit
         }
       })
     };
 
-    mockSpawn.mockReturnValue(mockChildProcess as any);
+    mockSpawn.mockReturnValue(mockChildProcess);
 
     // Mock fs operations
     mockFs.mkdir.mockResolvedValue(undefined);
@@ -171,7 +227,7 @@ describe('GUI_Automation_Agent', () => {
       ]);
 
       const executeTasksSpy = jest.spyOn(agent as any, 'executeTasks');
-      executeTasksSpy.mockImplementation(async function(this: GUI_Automation_Agent) {
+      executeTasksSpy.mockImplementation(async function(this: any) {
         const tasks = await this['loadGUITasks']();
         expect(tasks).toHaveLength(2);
         expect(tasks[0].environment.type).toBe('web');
@@ -552,7 +608,7 @@ describe('GUI_Automation_Agent', () => {
 
       // Mock the execution to focus on event emission
       const executeTasksSpy = jest.spyOn(agent as any, 'executeTasks');
-      executeTasksSpy.mockImplementation(async function(this: GUI_Automation_Agent) {
+      executeTasksSpy.mockImplementation(async function(this: any) {
         this['log']('GUI automation task execution started');
       });
 
@@ -576,7 +632,7 @@ describe('GUI_Automation_Agent', () => {
       };
 
       const processWebTaskSpy = jest.spyOn(agent as any, 'processWebTask');
-      processWebTaskSpy.mockImplementation(async function(this: GUI_Automation_Agent, task) {
+      processWebTaskSpy.mockImplementation(async function(this: any, task: any) {
         // Simulate processing steps
         for (let i = 0; i < task.instructions.length; i++) {
           if (!this['isRunning'] || this['stepCount'] >= this['maxSteps']) {

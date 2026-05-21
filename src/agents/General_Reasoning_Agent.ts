@@ -67,14 +67,27 @@ export class General_Reasoning_Agent extends BaseExecutionAgent {
   constructor(config: GeneralReasoningConfig) {
     super(config);
 
-    this.reasoningModel = config.reasoningModel || 'gpt-4';
-    this.maxReasoningSteps = config.maxReasoningSteps || 10;
-    this.temperature = config.temperature || 0.1;
-    this.toolsEnabled = config.toolsEnabled || ['calculator', 'search', 'knowledge_base'];
-    this.useChainOfThought = config.useChainOfThought !== false;
-    this.useSelfConsistency = config.useSelfConsistency || 1;
+    const cfg = config.configuration || {};
+    this.reasoningModel = config.reasoningModel ?? cfg.reasoningModel ?? 'gpt-4';
+    this.maxReasoningSteps = config.maxReasoningSteps ?? cfg.maxReasoningSteps ?? 10;
+    this.temperature = config.temperature ?? cfg.temperature ?? 0.1;
+    this.toolsEnabled = config.toolsEnabled ?? cfg.toolsEnabled ?? ['calculator', 'search', 'knowledge_base'];
+    this.useChainOfThought = config.useChainOfThought ?? cfg.useChainOfThought ?? true;
+    this.useSelfConsistency = config.useSelfConsistency ?? cfg.useSelfConsistency ?? 1;
 
     this.initializeTools();
+  }
+
+  public override getConfiguration(): Record<string, any> {
+    return {
+      ...this.configuration,
+      reasoningModel: this.reasoningModel,
+      maxReasoningSteps: this.maxReasoningSteps,
+      temperature: this.temperature,
+      toolsEnabled: this.toolsEnabled,
+      useChainOfThought: this.useChainOfThought,
+      useSelfConsistency: this.useSelfConsistency,
+    };
   }
 
   private initializeTools(): void {

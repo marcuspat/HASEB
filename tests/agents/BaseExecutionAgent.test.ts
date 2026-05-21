@@ -1,31 +1,49 @@
-import { BaseExecutionAgent, BaseAgentConfig, AgentMetrics } from '@/agents/BaseExecutionAgent';
-import { EvaluationModel } from '@/database/models/Evaluation';
-import { logger } from '@/utils/logger';
+import { describe, it, expect, beforeEach, beforeAll, jest } from '@jest/globals';
+import type { BaseAgentConfig, AgentMetrics } from '@/agents/BaseExecutionAgent';
 
 // Mock dependencies
-jest.mock('../../src/database/models/Evaluation');
-jest.mock('../../src/utils/logger');
-
-const mockEvaluationModel = EvaluationModel as jest.Mocked<typeof EvaluationModel>;
-const mockLogger = logger as jest.Mocked<typeof logger>;
-
-// Test implementation of BaseExecutionAgent
-class TestExecutionAgent extends BaseExecutionAgent {
-  protected async executeTasks(): Promise<void> {
-    // Mock implementation
-    this.updateProgress(25, 'Starting test tasks');
-    this.log('Test task executed');
-    this.recordTaskCompletion(true, 100, 0.01);
-    this.updateProgress(50, 'Task completed');
-    this.recordTaskCompletion(true, 150, 0.015);
-    this.updateProgress(75, 'Second task completed');
-    this.recordTaskCompletion(false, 50, 0.005);
-    this.updateProgress(100, 'All tasks completed');
+jest.unstable_mockModule('@/database/models/Evaluation', () => ({
+  EvaluationModel: {
+    create: jest.fn(),
+    updateStatus: jest.fn(),
+    updateStatusWithTime: jest.fn(),
+    updateMetrics: jest.fn(),
+    addLogs: jest.fn(),
+    findById: jest.fn(),
   }
-}
+}));
+
+jest.unstable_mockModule('@/utils/logger', () => ({
+  logger: { info: jest.fn(), error: jest.fn(), debug: jest.fn(), warn: jest.fn() }
+}));
+
+let BaseExecutionAgent: any;
+let TestExecutionAgent: any;
+let mockEvaluationModel: any;
+
+beforeAll(async () => {
+  const mod = await import('@/agents/BaseExecutionAgent');
+  BaseExecutionAgent = mod.BaseExecutionAgent;
+  const evalMod = await import('@/database/models/Evaluation');
+  mockEvaluationModel = evalMod.EvaluationModel;
+
+  TestExecutionAgent = class extends BaseExecutionAgent {
+    protected async executeTasks(): Promise<void> {
+      // Mock implementation
+      this.updateProgress(25, 'Starting test tasks');
+      this.log('Test task executed');
+      this.recordTaskCompletion(true, 100, 0.01);
+      this.updateProgress(50, 'Task completed');
+      this.recordTaskCompletion(true, 150, 0.015);
+      this.updateProgress(75, 'Second task completed');
+      this.recordTaskCompletion(false, 50, 0.005);
+      this.updateProgress(100, 'All tasks completed');
+    }
+  };
+});
 
 describe('BaseExecutionAgent', () => {
-  let agent: TestExecutionAgent;
+  let agent: any;
   let mockConfig: BaseAgentConfig;
 
   beforeEach(() => {
@@ -122,12 +140,12 @@ describe('BaseExecutionAgent', () => {
         status: 'pending',
         configuration: mockConfig.configuration,
         logs: [],
-        metrics: null,
+        metrics: undefined,
         startTime: expect.any(Date),
         endTime: undefined
       });
 
-      expect(mockEvaluationModel.updateStatus).toHaveBeenCalledWith('eval-123', 'running', expect.any(Date));
+      expect(mockEvaluationModel.updateStatusWithTime).toHaveBeenCalledWith('eval-123', 'running', expect.any(Date));
       expect(mockEvaluationModel.updateStatusWithTime).toHaveBeenCalledWith(
         'eval-123',
         'completed',
@@ -140,11 +158,11 @@ describe('BaseExecutionAgent', () => {
     });
 
     it('should handle execution failure', async () => {
-      class FailingAgent extends TestExecutionAgent {
+      const FailingAgent = class extends TestExecutionAgent {
         protected async executeTasks(): Promise<void> {
           throw new Error('Test execution failed');
         }
-      }
+      };
 
       const failingAgent = new FailingAgent(mockConfig);
 
@@ -192,11 +210,11 @@ describe('BaseExecutionAgent', () => {
         timeout: 100 // 100ms timeout
       };
 
-      class SlowAgent extends TestExecutionAgent {
+      const SlowAgent = class extends TestExecutionAgent {
         protected async executeTasks(): Promise<void> {
           await new Promise(resolve => setTimeout(resolve, 200)); // 200ms execution
         }
-      }
+      };
 
       const slowAgent = new SlowAgent(configWithShortTimeout);
 
@@ -302,7 +320,7 @@ describe('BaseExecutionAgent', () => {
   describe('Cancellation', () => {
     it('should cancel running agent', async () => {
       // Create a slow agent for cancellation testing
-      class SlowTestAgent extends TestExecutionAgent {
+      const SlowTestAgent = class extends TestExecutionAgent {
         protected async executeTasks(): Promise<void> {
           this.updateProgress(10, 'Starting slow task');
           await new Promise(resolve => setTimeout(resolve, 100)); // 100ms delay
@@ -311,7 +329,7 @@ describe('BaseExecutionAgent', () => {
           this.updateProgress(100, 'Task completed');
           this.recordTaskCompletion(true, 100, 0.01);
         }
-      }
+      };
 
       const slowAgent = new SlowTestAgent(mockConfig);
 
@@ -334,12 +352,12 @@ describe('BaseExecutionAgent', () => {
       const cancelSpy = jest.fn();
 
       // Create a slow agent
-      class SlowTestAgent extends TestExecutionAgent {
+      const SlowTestAgent = class extends TestExecutionAgent {
         protected async executeTasks(): Promise<void> {
           await new Promise(resolve => setTimeout(resolve, 100)); // 100ms delay
           this.recordTaskCompletion(true, 100, 0.01);
         }
-      }
+      };
 
       const slowAgent = new SlowTestAgent(mockConfig);
       slowAgent.on('cancelled', cancelSpy);
@@ -363,12 +381,12 @@ describe('BaseExecutionAgent', () => {
 
     it('should update evaluation status when cancelled', async () => {
       // Create a slow agent
-      class SlowTestAgent extends TestExecutionAgent {
+      const SlowTestAgent = class extends TestExecutionAgent {
         protected async executeTasks(): Promise<void> {
           await new Promise(resolve => setTimeout(resolve, 100)); // 100ms delay
           this.recordTaskCompletion(true, 100, 0.01);
         }
-      }
+      };
 
       const slowAgent = new SlowTestAgent(mockConfig);
 
@@ -429,9 +447,9 @@ describe('BaseExecutionAgent', () => {
     });
 
     it('should handle evaluation update failures gracefully', async () => {
-      mockEvaluationModel.updateStatus.mockRejectedValue(new Error('Update failed'));
+      mockEvaluationModel.updateStatusWithTime.mockRejectedValue(new Error('Update failed'));
 
-      // Should fail when status update fails
+      // updateStatusWithTime is called to transition to 'running'; rejecting it surfaces
       await expect(agent.execute()).rejects.toThrow('Update failed');
     });
   });
@@ -439,11 +457,11 @@ describe('BaseExecutionAgent', () => {
   describe('Final Metrics Calculation', () => {
     it('should calculate final metrics correctly', () => {
       // Create a test agent with no task execution for metrics testing
-      class NoTaskAgent extends BaseExecutionAgent {
+      const NoTaskAgent = class extends BaseExecutionAgent {
         protected async executeTasks(): Promise<void> {
           // No tasks executed
         }
-      }
+      };
 
       const noTaskAgent = new NoTaskAgent(mockConfig);
 
@@ -469,11 +487,11 @@ describe('BaseExecutionAgent', () => {
 
     it('should handle division by zero in metrics calculation', () => {
       // Create a test agent with no task execution for metrics testing
-      class NoTaskAgent extends BaseExecutionAgent {
+      const NoTaskAgent = class extends BaseExecutionAgent {
         protected async executeTasks(): Promise<void> {
           // No tasks executed
         }
-      }
+      };
 
       const noTaskAgent = new NoTaskAgent(mockConfig);
 

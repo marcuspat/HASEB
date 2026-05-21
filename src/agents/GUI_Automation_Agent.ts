@@ -60,12 +60,13 @@ export class GUI_Automation_Agent extends BaseExecutionAgent {
   constructor(config: GUIAutomationConfig) {
     super(config);
 
-    this.displayWidth = config.displayWidth || 1920;
-    this.displayHeight = config.displayHeight || 1080;
-    this.screenshotInterval = config.screenshotInterval || 2000;
-    this.maxSteps = config.maxSteps || 50;
-    this.browserType = config.browserType || 'chromium';
-    this.headless = config.headless || false;
+    const cfg = config.configuration || {};
+    this.displayWidth = config.displayWidth ?? cfg.displayWidth ?? 1920;
+    this.displayHeight = config.displayHeight ?? cfg.displayHeight ?? 1080;
+    this.screenshotInterval = config.screenshotInterval ?? cfg.screenshotInterval ?? 2000;
+    this.maxSteps = config.maxSteps ?? cfg.maxSteps ?? 50;
+    this.browserType = config.browserType ?? cfg.browserType ?? 'chromium';
+    this.headless = config.headless ?? cfg.headless ?? false;
   }
 
   protected async executeTasks(): Promise<void> {
@@ -792,5 +793,17 @@ export class GUI_Automation_Agent extends BaseExecutionAgent {
 
   private estimateCost(tokens: number): number {
     return tokens * 0.00001;
+  }
+
+  public override getConfiguration(): Record<string, any> {
+    return {
+      ...this.configuration,
+      displayWidth: this.displayWidth,
+      displayHeight: this.displayHeight,
+      screenshotInterval: this.screenshotInterval,
+      maxSteps: this.maxSteps,
+      browserType: this.browserType,
+      headless: this.headless,
+    };
   }
 }

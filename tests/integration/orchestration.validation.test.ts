@@ -4,14 +4,11 @@
  * This test validates the orchestration system without requiring LangGraph dependencies
  */
 
-import { describe, test, expect, beforeAll, afterAll, beforeEach, afterEach } from '@jest/globals';
-import { ExecutionEngine } from '../../src/orchestrator/ExecutionEngine';
-import { MetricsOrchestrator } from '../../src/services/metrics/MetricsOrchestrator';
-import { logger } from '../../src/utils/logger';
+import { describe, test, expect, beforeAll, afterAll, beforeEach, afterEach, jest } from '@jest/globals';
 import { v4 as uuidv4 } from 'uuid';
 
 // Mock database models to avoid database dependency during testing
-jest.mock('../../src/database/models/Agent', () => ({
+jest.unstable_mockModule('../../src/database/models/Agent', () => ({
   AgentModel: {
     findById: jest.fn().mockResolvedValue({
       id: 'mock-agent-id',
@@ -22,7 +19,7 @@ jest.mock('../../src/database/models/Agent', () => ({
   }
 }));
 
-jest.mock('../../src/database/models/Benchmark', () => ({
+jest.unstable_mockModule('../../src/database/models/Benchmark', () => ({
   BenchmarkModel: {
     findById: jest.fn().mockResolvedValue({
       id: 'mock-benchmark-id',
@@ -32,6 +29,11 @@ jest.mock('../../src/database/models/Benchmark', () => ({
     })
   }
 }));
+
+// Dynamically imported after mocks are registered
+let ExecutionEngine: typeof import('../../src/orchestrator/ExecutionEngine').ExecutionEngine;
+let MetricsOrchestrator: typeof import('../../src/services/metrics/MetricsOrchestrator').MetricsOrchestrator;
+let logger: typeof import('../../src/utils/logger').logger;
 
 /**
  * @jest-environment node
@@ -43,6 +45,11 @@ describe('HASEB Orchestration System Validation Tests', () => {
   let testBenchmarkId: string;
 
   beforeAll(async () => {
+    // Dynamically import modules after mocks are registered
+    ({ ExecutionEngine } = await import('../../src/orchestrator/ExecutionEngine'));
+    ({ MetricsOrchestrator } = await import('../../src/services/metrics/MetricsOrchestrator'));
+    ({ logger } = await import('../../src/utils/logger'));
+
     process.env.NODE_ENV = 'test';
 
     testAgentId = 'test-agent-' + uuidv4();
@@ -63,6 +70,17 @@ describe('HASEB Orchestration System Validation Tests', () => {
 
   beforeEach(async () => {
     jest.clearAllMocks();
+
+    // Re-apply mock return values after resetMocks clears them
+    const { AgentModel } = await import('../../src/database/models/Agent');
+    const { BenchmarkModel } = await import('../../src/database/models/Benchmark');
+    (AgentModel.findById as any).mockResolvedValue({
+      id: testAgentId, name: 'Test Agent', type: 'test', configuration: {}
+    });
+    (BenchmarkModel.findById as any).mockResolvedValue({
+      id: testBenchmarkId, name: 'Test Benchmark', type: 'test', dataset: 'test-dataset'
+    });
+
     executionEngine = new ExecutionEngine(5, 30000);
   });
 

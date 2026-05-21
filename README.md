@@ -396,18 +396,18 @@ node -e "console.log(require('crypto').randomBytes(64).toString('hex'))"
 ### Running Tests
 
 ```bash
-# Run all tests
+# Run unit tests (no database required — use this for CI and local dev)
 npm test
 
 # Run tests with coverage
 npm run test:coverage
 
 # Run specific test suites
-npm run test:unit          # Unit tests only
-npm run test:integration   # Integration tests only
+npm run test:unit          # Unit tests only (same as npm test)
+npm run test:integration   # Integration tests (requires PostgreSQL — see .env.example)
 npm run test:e2e          # End-to-end tests (Playwright)
-npm run test:performance  # Performance benchmarks
-npm run test:security     # Security tests
+npm run test:performance  # Performance benchmarks (requires PostgreSQL)
+npm run test:security     # Security tests (requires PostgreSQL)
 
 # Watch mode for development
 npm run test:watch

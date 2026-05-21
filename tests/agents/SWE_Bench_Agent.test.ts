@@ -1,24 +1,60 @@
-import { SWE_Bench_Agent, SWEBenchConfig } from '@/agents/SWE_Bench_Agent';
-import { BaseExecutionAgent } from '@/agents/BaseExecutionAgent';
-import { spawn } from 'child_process';
-import { promises as fs } from 'fs';
+import { describe, it, expect, beforeEach, beforeAll, jest } from '@jest/globals';
+import type { SWEBenchConfig } from '@/agents/SWE_Bench_Agent';
 
 // Mock dependencies
-jest.mock('child_process');
-jest.mock('fs', () => ({
+jest.unstable_mockModule('child_process', () => ({
+  spawn: jest.fn(),
+}));
+
+jest.unstable_mockModule('fs', () => ({
   promises: {
     mkdir: jest.fn(),
     writeFile: jest.fn(),
     rm: jest.fn(),
-    unlink: jest.fn()
+    unlink: jest.fn(),
   }
 }));
 
-const mockSpawn = spawn as jest.MockedFunction<typeof spawn>;
-const mockFs = fs as jest.Mocked<typeof fs>;
+jest.unstable_mockModule('@/utils/logger', () => ({
+  logger: { info: jest.fn(), error: jest.fn(), debug: jest.fn(), warn: jest.fn() }
+}));
+
+jest.unstable_mockModule('@/database/models/Evaluation', () => ({
+  EvaluationModel: {
+    create: jest.fn(),
+    updateStatus: jest.fn(),
+    updateStatusWithTime: jest.fn(),
+    updateMetrics: jest.fn(),
+    addLogs: jest.fn(),
+    findById: jest.fn(),
+  }
+}));
+
+let SWE_Bench_Agent: any;
+let BaseExecutionAgent: any;
+let mockSpawn: any;
+let mockFs: any;
+let mockEvaluationModel: any;
+
+beforeAll(async () => {
+  const cpMod = await import('child_process');
+  mockSpawn = cpMod.spawn;
+
+  const fsMod = await import('fs');
+  mockFs = (fsMod as any).promises;
+
+  const evalMod = await import('@/database/models/Evaluation');
+  mockEvaluationModel = evalMod.EvaluationModel;
+
+  const sweMod = await import('@/agents/SWE_Bench_Agent');
+  SWE_Bench_Agent = sweMod.SWE_Bench_Agent;
+
+  const baseMod = await import('@/agents/BaseExecutionAgent');
+  BaseExecutionAgent = baseMod.BaseExecutionAgent;
+});
 
 describe('SWE_Bench_Agent', () => {
-  let agent: SWE_Bench_Agent;
+  let agent: any;
   let mockConfig: SWEBenchConfig;
 
   beforeEach(() => {
@@ -37,18 +73,38 @@ describe('SWE_Bench_Agent', () => {
       maxRetries: 2
     };
 
+    // Mock EvaluationModel methods
+    mockEvaluationModel.create = jest.fn().mockResolvedValue({
+      id: 'eval-123',
+      agentId: mockConfig.agentId,
+      benchmarkId: mockConfig.benchmarkId,
+      status: 'pending',
+      configuration: mockConfig.configuration,
+      logs: [],
+      metrics: null,
+      startTime: new Date(),
+      endTime: undefined,
+      createdAt: new Date(),
+      updatedAt: new Date()
+    });
+    mockEvaluationModel.updateStatus = jest.fn().mockResolvedValue(true);
+    mockEvaluationModel.updateStatusWithTime = jest.fn().mockResolvedValue(true);
+    mockEvaluationModel.updateMetrics = jest.fn().mockResolvedValue(true);
+    mockEvaluationModel.addLogs = jest.fn().mockResolvedValue(true);
+    mockEvaluationModel.findById = jest.fn().mockResolvedValue(null);
+
     // Mock child_process.spawn
     const mockChildProcess = {
       stdout: { on: jest.fn() },
       stderr: { on: jest.fn() },
-      on: jest.fn().mockImplementation((event, callback) => {
+      on: jest.fn().mockImplementation((event: string, callback: any) => {
         if (event === 'close') {
           setTimeout(() => callback(0), 100); // Simulate successful exit
         }
       })
     };
 
-    mockSpawn.mockReturnValue(mockChildProcess as any);
+    mockSpawn.mockReturnValue(mockChildProcess);
 
     // Mock fs operations
     mockFs.mkdir.mockResolvedValue(undefined);
@@ -109,13 +165,13 @@ describe('SWE_Bench_Agent', () => {
         const mockChild = {
           stdout: { on: jest.fn() },
           stderr: { on: jest.fn() },
-          on: jest.fn().mockImplementation((event, callback) => {
+          on: jest.fn().mockImplementation((event: string, callback: any) => {
             if (event === 'close') {
               setTimeout(() => callback(1), 100); // Simulate failed exit
             }
           })
         };
-        return mockChild as any;
+        return mockChild;
       });
 
       const setupDockerEnvSpy = jest.spyOn(agent as any, 'setupDockerEnvironment');
@@ -140,7 +196,7 @@ describe('SWE_Bench_Agent', () => {
       ]);
 
       const executeTasksSpy = jest.spyOn(agent as any, 'executeTasks');
-      executeTasksSpy.mockImplementation(async function(this: SWE_Bench_Agent) {
+      executeTasksSpy.mockImplementation(async function(this: any) {
         const tasks = await this['loadSWEBenchTasks']();
         expect(tasks).toHaveLength(1);
         expect(tasks[0].taskId).toBe('test-task-1');
@@ -167,7 +223,7 @@ describe('SWE_Bench_Agent', () => {
       });
 
       const executeTasksSpy = jest.spyOn(agent as any, 'executeTasks');
-      executeTasksSpy.mockImplementation(async function(this: SWE_Bench_Agent) {
+      executeTasksSpy.mockImplementation(async function(this: any) {
         const result = await this['processSWEBenchTask'](mockTask);
         expect(result.success).toBe(true);
         expect(result.tokensUsed).toBe(100);
@@ -315,14 +371,14 @@ test_another.py ..
       const mockChildProcess = {
         stdout: { on: jest.fn() },
         stderr: { on: jest.fn() },
-        on: jest.fn().mockImplementation((event, callback) => {
+        on: jest.fn().mockImplementation((event: string, callback: any) => {
           if (event === 'close') {
             setTimeout(() => callback(1), 100); // Non-zero exit code
           }
         })
       };
 
-      mockSpawn.mockReturnValue(mockChildProcess as any);
+      mockSpawn.mockReturnValue(mockChildProcess);
 
       await expect((agent as any)['executeCommand']('false')).rejects.toThrow('Command failed');
     });
@@ -384,7 +440,7 @@ test_another.py ..
       });
 
       const executeTasksSpy = jest.spyOn(agent as any, 'executeTasks');
-      executeTasksSpy.mockImplementation(async function(this: SWE_Bench_Agent) {
+      executeTasksSpy.mockImplementation(async function(this: any) {
         const result = await this['processSWEBenchTask'](mockTask);
         expect(result.success).toBe(false);
         expect(result.error).toBe('Task processing failed');
@@ -419,7 +475,7 @@ test_another.py ..
 
       // Mock the execution to focus on event emission
       const executeTasksSpy = jest.spyOn(agent as any, 'executeTasks');
-      executeTasksSpy.mockImplementation(async function(this: SWE_Bench_Agent) {
+      executeTasksSpy.mockImplementation(async function(this: any) {
         this['log']('SWE-Bench task execution started');
       });
 
