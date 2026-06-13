@@ -2,6 +2,7 @@ import { Pool, PoolClient, QueryResult } from 'pg';
 import sqlite3 from 'sqlite3';
 import { DatabaseConfig } from '../types/index';
 import { logger } from '../utils/logger';
+import { translateSqlForSqlite } from './sqlite-compat';
 
 export class DatabaseConnection {
   private static instance: DatabaseConnection;
@@ -70,9 +71,11 @@ export class DatabaseConnection {
     const start = Date.now();
     try {
       if (this.isSqlite) {
-        // SQLite query execution
+        // SQLite query execution. Translate Postgres-flavored SQL (ILIKE,
+        // $N placeholders, unaliased COUNT(*)) into a SQLite-compatible form.
+        const sqliteSql = translateSqlForSqlite(text);
         return new Promise((resolve, reject) => {
-          const stmt = this.db!.prepare(text);
+          const stmt = this.db!.prepare(sqliteSql);
 
           if (params && params.length > 0) {
             stmt.all(params, (err, rows) => {
@@ -126,7 +129,7 @@ export class DatabaseConnection {
         });
       } else {
         // PostgreSQL query execution
-        const result = await this.pool!.query<T>(text, params);
+        const result = await this.pool!.query(text, params);
         const duration = Date.now() - start;
 
         logger.debug('PostgreSQL query executed', {

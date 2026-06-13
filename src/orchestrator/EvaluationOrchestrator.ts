@@ -126,7 +126,7 @@ export class EvaluationOrchestrator {
         status: 'running',
         configuration,
         logs: [],
-        metrics: null,
+        metrics: undefined,
         startTime: this.currentEvaluation.startTime,
       });
 
@@ -212,6 +212,63 @@ export class EvaluationOrchestrator {
   }
 
   /**
+   * Validate that an evaluation task can run: both the agent and the benchmark
+   * must exist. Throws a descriptive error otherwise. Returns the resolved
+   * agent/benchmark pair on success.
+   */
+  public async validateTask(
+    agentId: string,
+    benchmarkId: string
+  ): Promise<{ agent: any; benchmark: any }> {
+    if (!agentId) {
+      throw new Error('agentId is required');
+    }
+    if (!benchmarkId) {
+      throw new Error('benchmarkId is required');
+    }
+
+    const [agent, benchmark] = await Promise.all([
+      AgentModel.findById(agentId),
+      BenchmarkModel.findById(benchmarkId),
+    ]);
+
+    if (!agent) {
+      throw new Error(`Agent not found: ${agentId}`);
+    }
+    if (!benchmark) {
+      throw new Error(`Benchmark not found: ${benchmarkId}`);
+    }
+
+    return { agent, benchmark };
+  }
+
+  /**
+   * Gracefully shut down the orchestrator. Stops any in-flight evaluation and
+   * releases the metrics collection resources. Safe to call multiple times.
+   */
+  public async shutdown(): Promise<void> {
+    logger.info('Shutting down EvaluationOrchestrator');
+
+    try {
+      if (this.metricsOrchestrator) {
+        try {
+          await this.metricsOrchestrator.stop();
+        } catch (stopError) {
+          logger.error('Error stopping metrics orchestrator during shutdown:', stopError);
+        }
+        await this.metricsOrchestrator.cleanup();
+        this.metricsOrchestrator = undefined;
+      }
+    } catch (error) {
+      logger.error('Error during EvaluationOrchestrator shutdown:', error);
+    } finally {
+      this.isRunning = false;
+      this.currentEvaluation = undefined;
+      logger.info('EvaluationOrchestrator shutdown complete');
+    }
+  }
+
+  /**
    * Build the LangGraph evaluation workflow
    */
   private buildEvaluationGraph(): CompiledGraph<EvaluationState> {
@@ -219,16 +276,8 @@ export class EvaluationOrchestrator {
       setup: async (state: EvaluationState): Promise<EvaluationState> => {
         logger.debug(`Setting up evaluation ${state.id}`);
 
-        // Get agent and benchmark details
-        const agent = await AgentModel.findById(state.agentId);
-        const benchmark = await BenchmarkModel.findById(state.benchmarkId);
-
-        if (!agent) {
-          throw new Error(`Agent not found: ${state.agentId}`);
-        }
-        if (!benchmark) {
-          throw new Error(`Benchmark not found: ${state.benchmarkId}`);
-        }
+        // Validate and resolve agent and benchmark details
+        const { agent, benchmark } = await this.validateTask(state.agentId, state.benchmarkId);
 
         // Record evaluation setup in metrics
         if (this.metricsOrchestrator) {

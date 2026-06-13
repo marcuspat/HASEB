@@ -447,11 +447,11 @@ describe('Evaluation Metrics Integration Tests', () => {
       const largeConfig = {
         timeout: 1000,
         parameters: {
-          [Array.from({ length: 100 }, (_, i) => `param${i}`): `value${i}`
+          ...Object.fromEntries(Array.from({ length: 100 }, (_, i) => [`param${i}`, `value${i}`]))
         },
         settings: {
           nested: {
-            [Array.from({ length: 50 }, (_, i) => `nested${i}`): i
+            ...Object.fromEntries(Array.from({ length: 50 }, (_, i) => [`nested${i}`, i]))
           }
         }
       };

@@ -11,15 +11,15 @@ import { AgentModel } from '@/database/models/Agent';
 import { BenchmarkModel } from '@/database/models/Benchmark';
 
 // Mock dependencies
-jest.mock('../../src/database/models/Evaluation'));
-jest.mock('../../src/database/models/Agent'));
-jest.mock('../../src/database/models/Benchmark'));
-jest.mock('../../src/orchestrator/EvaluationQueue'));
-jest.mock('../../src/orchestrator/WebSocketManager'));
-jest.mock('../../src/orchestrator/EnvironmentManager'));
-jest.mock('../../src/orchestrator/MetricsCollector'));
-jest.mock('../../src/orchestrator/ExecutionEngine'));
-jest.mock('../../src/orchestrator/ErrorHandler'));
+jest.mock('../../src/database/models/Evaluation');
+jest.mock('../../src/database/models/Agent');
+jest.mock('../../src/database/models/Benchmark');
+jest.mock('../../src/orchestrator/EvaluationQueue');
+jest.mock('../../src/orchestrator/WebSocketManager');
+jest.mock('../../src/orchestrator/EnvironmentManager');
+jest.mock('../../src/orchestrator/MetricsCollector');
+jest.mock('../../src/orchestrator/ExecutionEngine');
+jest.mock('../../src/orchestrator/ErrorHandler');
 
 describe('EvaluationOrchestrator', () => {
   let orchestrator: EvaluationOrchestrator;

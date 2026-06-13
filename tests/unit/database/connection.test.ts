@@ -3,7 +3,7 @@ import { TestDatabase } from '../../helpers/test-db';
 import { mockDatabaseConnection } from '../../helpers/mocks';
 
 // Mock the logger
-jest.mock('../../../src/utils/logger'), () => ({
+jest.mock('../../../src/utils/logger', () => ({
   logger: {
     info: jest.fn(),
     error: jest.fn(),

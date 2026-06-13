@@ -39,7 +39,7 @@ export default {
   moduleNameMapper: {
     '^@/(.*)$': '<rootDir>/src/$1',
     '^(\\.{1,2}/.*)\\.jsx?$': '$1',
-    'uuid': 'jest-uuid-mock',
+    '^uuid$': '<rootDir>/tests/mocks/uuid.ts',
   },
   transformIgnorePatterns: [
     'node_modules/(?!(uuid|@langchain|@langgraph|langgraph)/)'

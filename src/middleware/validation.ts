@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import { ValidationError } from './errorHandler';
+import { User } from '../types/index';
 
 export interface ValidationSchema {
   body?: Record<string, ValidationRule>;
@@ -14,6 +15,7 @@ export interface ValidationRule {
   max?: number;
   pattern?: RegExp;
   enum?: any[];
+  default?: any;
   custom?: (value: any) => boolean | string;
 }
 
@@ -145,14 +147,14 @@ function validateType(value: any, type: ValidationRule['type']): boolean {
 }
 
 // Common validation schemas
-export const commonSchemas = {
+export const commonSchemas: Record<string, ValidationSchema> = {
   pagination: {
     query: {
       page: { type: 'number', min: 1, default: 1 },
       limit: { type: 'number', min: 1, max: 100, default: 20 },
       sortBy: { type: 'string', required: false },
       sortOrder: { type: 'string', enum: ['asc', 'desc'], default: 'desc' },
-    } as Record<string, ValidationRule>,
+    },
   },
 
   id: {
@@ -197,6 +199,43 @@ export const commonSchemas = {
       configuration: { type: 'object', required: false },
     },
   },
+
+  evaluationStatusUpdate: {
+    params: {
+      id: { type: 'uuid', required: true },
+    },
+    body: {
+      status: {
+        type: 'string',
+        required: true,
+        enum: ['pending', 'running', 'completed', 'failed', 'cancelled'],
+      },
+      startTime: { type: 'string', required: false },
+      endTime: { type: 'string', required: false },
+    },
+  } as ValidationSchema,
+
+  evaluationLogCreate: {
+    params: {
+      id: { type: 'uuid', required: true },
+    },
+    body: {
+      log: { type: 'string', required: true, min: 1 },
+    },
+  } as ValidationSchema,
+
+  evaluationMetricsUpdate: {
+    params: {
+      id: { type: 'uuid', required: true },
+    },
+    body: {
+      performance: { type: 'object', required: false },
+      efficiency: { type: 'object', required: false },
+      cost: { type: 'object', required: false },
+      robustness: { type: 'object', required: false },
+      quality: { type: 'object', required: false },
+    },
+  } as ValidationSchema,
 
   userCreate: {
     body: {
@@ -243,11 +282,7 @@ declare global {
         sortBy?: string;
         sortOrder: 'asc' | 'desc';
       };
-      user?: {
-        id: string;
-        email: string;
-        role: string;
-      };
+      user?: User;
     }
   }
 }

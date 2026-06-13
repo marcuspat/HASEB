@@ -1,6 +1,7 @@
 import express from 'express';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
+import { randomUUID } from 'crypto';
 import { asyncHandler } from '../middleware/errorHandler';
 import { validateRequest } from '../middleware/validation';
 import { UserModel } from '../database/models/User';
@@ -11,7 +12,12 @@ import { logger } from '../utils/logger';
 const router = express.Router();
 
 const JWT_SECRET = process.env.JWT_SECRET!;
+// Access and refresh tokens are signed with distinct secrets so that an access
+// token can never be replayed as a refresh token (and vice versa). If a
+// dedicated refresh secret is not configured we fall back to JWT_SECRET.
+const JWT_REFRESH_SECRET = process.env.JWT_REFRESH_SECRET || process.env.JWT_SECRET!;
 const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '24h';
+const JWT_REFRESH_EXPIRES_IN = process.env.JWT_REFRESH_EXPIRES_IN || '7d';
 
 if (!JWT_SECRET) {
   throw new Error('JWT_SECRET environment variable is required');
@@ -19,17 +25,21 @@ if (!JWT_SECRET) {
 
 function generateToken(userId: string): string {
   return jwt.sign(
-    { userId },
+    { userId, type: 'access' },
     JWT_SECRET,
-    { expiresIn: JWT_EXPIRES_IN }
+    { expiresIn: JWT_EXPIRES_IN } as jwt.SignOptions
   );
 }
 
 function generateRefreshToken(userId: string): string {
+  // Each refresh token carries a unique id (jti). Because a fresh refresh token
+  // is issued on every /refresh call (rotation), the jti uniquely identifies an
+  // individual token in the rotation chain and is the hook a persistent
+  // allow/deny list would key off for reuse detection.
   return jwt.sign(
-    { userId, type: 'refresh' },
-    JWT_SECRET,
-    { expiresIn: '7d' }
+    { userId, type: 'refresh', jti: randomUUID() },
+    JWT_REFRESH_SECRET,
+    { expiresIn: JWT_REFRESH_EXPIRES_IN } as jwt.SignOptions
   );
 }
 
@@ -38,6 +48,14 @@ function verifyToken(token: string): any {
     return jwt.verify(token, JWT_SECRET);
   } catch (error) {
     throw new UnauthorizedError('Invalid or expired token');
+  }
+}
+
+function verifyRefreshToken(token: string): any {
+  try {
+    return jwt.verify(token, JWT_REFRESH_SECRET);
+  } catch (error) {
+    throw new UnauthorizedError('Invalid or expired refresh token');
   }
 }
 
@@ -278,8 +296,8 @@ router.post('/refresh',
   asyncHandler(async (req: express.Request, res: express.Response) => {
     const { refreshToken } = req.body;
 
-    // Verify refresh token
-    const decoded = verifyToken(refreshToken);
+    // Verify refresh token against the dedicated refresh secret
+    const decoded = verifyRefreshToken(refreshToken);
     if (decoded.type !== 'refresh') {
       throw new UnauthorizedError('Invalid refresh token');
     }
@@ -290,7 +308,9 @@ router.post('/refresh',
       throw new UnauthorizedError('User not found or inactive');
     }
 
-    // Generate new tokens
+    // Rotate tokens: issue a brand-new access token AND a brand-new refresh
+    // token (with a fresh jti) on every refresh, so the previous refresh token
+    // is superseded rather than reused indefinitely.
     const newToken = generateToken(user.id);
     const newRefreshToken = generateRefreshToken(user.id);
 
@@ -511,7 +531,7 @@ function authenticateToken(req: express.Request, res: express.Response, next: ex
   const token = authHeader && authHeader.split(' ')[1]; // Bearer TOKEN
 
   if (!token) {
-    return res.status(401).json({
+    return void res.status(401).json({
       success: false,
       error: {
         code: 'UNAUTHORIZED',
@@ -528,7 +548,7 @@ function authenticateToken(req: express.Request, res: express.Response, next: ex
     UserModel.findById(decoded.userId)
       .then(user => {
         if (!user || !user.isActive) {
-          return res.status(401).json({
+          return void res.status(401).json({
             success: false,
             error: {
               code: 'UNAUTHORIZED',
@@ -543,7 +563,7 @@ function authenticateToken(req: express.Request, res: express.Response, next: ex
       })
       .catch(error => {
         logger.error('Error fetching user during authentication:', error);
-        return res.status(500).json({
+        return void res.status(500).json({
           success: false,
           error: {
             code: 'INTERNAL_ERROR',
@@ -553,7 +573,7 @@ function authenticateToken(req: express.Request, res: express.Response, next: ex
         });
       });
   } catch (error) {
-    return res.status(401).json({
+    return void res.status(401).json({
       success: false,
       error: {
         code: 'UNAUTHORIZED',
@@ -570,7 +590,7 @@ function requireRole(role: string) {
     const user = (req as any).user;
 
     if (!user) {
-      return res.status(401).json({
+      return void res.status(401).json({
         success: false,
         error: {
           code: 'UNAUTHORIZED',
@@ -581,7 +601,7 @@ function requireRole(role: string) {
     }
 
     if (user.role !== role && user.role !== 'admin') {
-      return res.status(403).json({
+      return void res.status(403).json({
         success: false,
         error: {
           code: 'FORBIDDEN',
