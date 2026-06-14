@@ -2,7 +2,7 @@ import { ApiService } from '@/services/api';
 import { mockDatabaseConnection } from '../../helpers/mocks';
 
 // Mock the database connection
-jest.mock('../../../src/database/connection'), () => ({
+jest.mock('../../../src/database/connection', () => ({
   db: mockDatabaseConnection,
 }));
 

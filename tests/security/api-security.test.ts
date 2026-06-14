@@ -3,7 +3,7 @@ import app from '@/server';
 import { TestDatabase } from '../helpers/test-db';
 
 // Mock logger for security tests
-jest.mock('../../src/utils/logger'), () => ({
+jest.mock('../../src/utils/logger', () => ({
   logger: {
     info: jest.fn(),
     warn: jest.fn(),

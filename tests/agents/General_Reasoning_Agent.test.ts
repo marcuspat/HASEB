@@ -2,7 +2,7 @@ import { General_Reasoning_Agent, GeneralReasoningConfig } from '@/agents/Genera
 import { BaseExecutionAgent } from '@/agents/BaseExecutionAgent';
 
 // Mock dependencies
-jest.mock('../../src/utils/logger'));
+jest.mock('../../src/utils/logger');
 
 const mockLogger = require('../../src/utils/logger');
 

@@ -6,10 +6,10 @@ import { TestDatabase } from '../../helpers/test-db';
 import { mockRequest, mockResponse } from '../../helpers/mocks';
 
 // Mock the database models
-jest.mock('../../../src/database/models/Agent'));
+jest.mock('../../../src/database/models/Agent');
 
 // Mock the logger
-jest.mock('../../../src/utils/logger'), () => ({
+jest.mock('../../../src/utils/logger', () => ({
   logger: {
     info: jest.fn(),
     error: jest.fn(),
@@ -19,11 +19,11 @@ jest.mock('../../../src/utils/logger'), () => ({
 }));
 
 // Mock the middleware
-jest.mock('../../../src/middleware/requestLogger'), () => ({
+jest.mock('../../../src/middleware/requestLogger', () => ({
   logApiCall: jest.fn((req, res, next) => next()),
 }));
 
-jest.mock('../../../src/middleware/validation'), () => ({
+jest.mock('../../../src/middleware/validation', () => ({
   validateRequest: jest.fn((schema) => (req, res, next) => next()),
   extractPagination: jest.fn((req, res, next) => {
     req.pagination = { page: 1, limit: 20 };
@@ -37,7 +37,7 @@ jest.mock('../../../src/middleware/validation'), () => ({
   },
 }));
 
-jest.mock('../../../src/middleware/errorHandler'), () => ({
+jest.mock('../../../src/middleware/errorHandler', () => ({
   asyncHandler: (fn: any) => async (req: any, res: any, next: any) => {
     try {
       await fn(req, res, next);

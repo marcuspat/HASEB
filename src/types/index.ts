@@ -107,14 +107,30 @@ export interface ParetoPoint {
   isParetoOptimal: boolean;
 }
 
+export type UserRole = 'admin' | 'user' | 'viewer';
+
+export interface User {
+  id: string;
+  email: string;
+  username: string;
+  fullName: string;
+  role: UserRole;
+  isActive: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface ApiError {
+  code: string;
+  message: string;
+  details?: unknown;
+  timestamp: Date;
+}
+
 export interface ApiResponse<T = any> {
   success: boolean;
   data?: T;
-  error?: {
-    code: string;
-    message: string;
-    timestamp: Date;
-  };
+  error?: ApiError;
   metadata?: {
     timestamp: Date;
     requestId?: string;

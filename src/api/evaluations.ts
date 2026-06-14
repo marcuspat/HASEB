@@ -3,7 +3,7 @@ import { EvaluationModel } from '../database/models/Evaluation';
 import { AgentModel } from '../database/models/Agent';
 import { BenchmarkModel } from '../database/models/Benchmark';
 import { logger } from '../utils/logger';
-import { validateRequest } from '../middleware/validation';
+import { validateRequest, commonSchemas } from '../middleware/validation';
 
 const router = Router();
 
@@ -178,7 +178,7 @@ router.get('/:id', async (req: Request, res: Response) => {
  *       500:
  *         description: Server error
  */
-router.post('/', validateRequest, async (req: Request, res: Response) => {
+router.post('/', validateRequest(commonSchemas.evaluationCreate), async (req: Request, res: Response) => {
   try {
     const { agentId, benchmarkId, configuration, status } = req.body;
 
@@ -212,7 +212,7 @@ router.post('/', validateRequest, async (req: Request, res: Response) => {
       status: status || 'pending',
       configuration: configuration || {},
       logs: [],
-      metrics: null,
+      metrics: undefined,
       startTime: new Date(),
       endTime: undefined
     });
@@ -275,7 +275,7 @@ router.post('/', validateRequest, async (req: Request, res: Response) => {
  *       500:
  *         description: Server error
  */
-router.patch('/:id/status', validateRequest, async (req: Request, res: Response) => {
+router.patch('/:id/status', validateRequest(commonSchemas.evaluationStatusUpdate), async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const { status, startTime, endTime } = req.body;
@@ -348,7 +348,7 @@ router.patch('/:id/status', validateRequest, async (req: Request, res: Response)
  *       500:
  *         description: Server error
  */
-router.post('/:id/logs', validateRequest, async (req: Request, res: Response) => {
+router.post('/:id/logs', validateRequest(commonSchemas.evaluationLogCreate), async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const { log } = req.body;
@@ -463,7 +463,7 @@ router.post('/:id/logs', validateRequest, async (req: Request, res: Response) =>
  *       500:
  *         description: Server error
  */
-router.put('/:id/metrics', validateRequest, async (req: Request, res: Response) => {
+router.put('/:id/metrics', validateRequest(commonSchemas.evaluationMetricsUpdate), async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const metrics = req.body;
