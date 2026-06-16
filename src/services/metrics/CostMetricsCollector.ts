@@ -229,6 +229,10 @@ export class CostMetricsCollector extends BaseMetricCollector {
   /**
    * Record token usage
    */
+  public recordTaskCompletion(): void {
+    this.state.tasksCompleted += 1;
+  }
+
   public recordTokenUsage(
     model: string,
     inputTokens: number,

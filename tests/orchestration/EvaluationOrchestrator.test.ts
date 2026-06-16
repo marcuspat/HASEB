@@ -158,7 +158,7 @@ describe('HASEB Orchestration System Test Suite', () => {
       try {
         await evaluationOrchestrator.executeEvaluation('invalid-agent', 'benchmark-1');
         fail('Should have thrown error for invalid agent');
-      } catch (error) {
+      } catch (error: any) {
         expect(error.message).toContain('Agent not found');
         console.log(`✅ Error handling working: ${error.message}`);
       }
@@ -200,7 +200,7 @@ describe('HASEB Orchestration System Test Suite', () => {
       try {
         await evaluationOrchestrator.executeEvaluation('agent-1', 'benchmark-1');
         fail('Should have thrown error for concurrent evaluation');
-      } catch (error) {
+      } catch (error: any) {
         expect(error.message).toContain('Another evaluation is already running');
         console.log(`✅ Concurrent evaluation prevention working`);
       }
@@ -255,17 +255,17 @@ describe('HASEB Orchestration System Test Suite', () => {
     });
 
     test('✅ Queue event handling and processing', (done) => {
-      const queueEvents = [];
+      const queueEvents: any[] = [];
 
-      evaluationQueue.on('queued', (item) => {
+      evaluationQueue.on('queued', (item: any) => {
         queueEvents.push({ type: 'queued', item: item.id });
       });
 
-      evaluationQueue.on('started', (item) => {
+      evaluationQueue.on('started', (item: any) => {
         queueEvents.push({ type: 'started', item: item.id });
       });
 
-      evaluationQueue.on('completed', (item) => {
+      evaluationQueue.on('completed', (item: any) => {
         queueEvents.push({ type: 'completed', item: item.id });
 
         // Verify all events fired
@@ -466,8 +466,8 @@ describe('HASEB Orchestration System Test Suite', () => {
       // Execute task with short timeout for testing
       const executionPromise = executionEngine.executeTask(
         'eval-timeout-test',
-        task,
-        { agentId: 'agent-timeout', environment: {}, configuration: {} }
+        task as any,
+        { agentId: 'agent-timeout', environment: {}, configuration: {} } as any
       );
 
       // Wait for execution to complete
@@ -654,9 +654,9 @@ describe('HASEB Orchestration System Test Suite', () => {
     });
 
     test('✅ Real-time metrics collection and analysis', (done) => {
-      const metricsEvents = [];
+      const metricsEvents: any[] = [];
 
-      metricsCollector.on('metricsCollected', (evaluationId, metrics) => {
+      metricsCollector.on('metricsCollected', (evaluationId: any, metrics: any) => {
         metricsEvents.push({ evaluationId, metrics, timestamp: new Date() });
       });
 
@@ -700,7 +700,7 @@ describe('HASEB Orchestration System Test Suite', () => {
         done();
       });
 
-      socket.on('connect_error', (error) => {
+      socket.on('connect_error', (error: any) => {
         fail(`WebSocket connection failed: ${error.message}`);
       });
     });
@@ -714,7 +714,7 @@ describe('HASEB Orchestration System Test Suite', () => {
         socket.emit('subscribe', { evaluationId, userId: 'test-user' });
       });
 
-      socket.on('subscribed', (data) => {
+      socket.on('subscribed', (data: any) => {
         expect(data.evaluationId).toBe(evaluationId);
         expect(data.timestamp).toBeDefined();
 
@@ -725,7 +725,7 @@ describe('HASEB Orchestration System Test Suite', () => {
         done();
       });
 
-      socket.on('error', (error) => {
+      socket.on('error', (error: any) => {
         fail(`WebSocket subscription failed: ${error.message}`);
       });
     });
@@ -756,13 +756,13 @@ describe('HASEB Orchestration System Test Suite', () => {
         socket2.emit('subscribe', { evaluationId });
       });
 
-      socket1.on('evaluation_update', (message) => {
+      socket1.on('evaluation_update', (message: any) => {
         expect(message.type).toBe('progress_update');
         expect(message.evaluationId).toBe(evaluationId);
         checkComplete();
       });
 
-      socket2.on('evaluation_update', (message) => {
+      socket2.on('evaluation_update', (message: any) => {
         expect(message.type).toBe('progress_update');
         expect(message.evaluationId).toBe(evaluationId);
         checkComplete();
@@ -821,7 +821,7 @@ describe('HASEB Orchestration System Test Suite', () => {
         }, 200);
       });
 
-      socket.on('evaluation_update', (message) => {
+      socket.on('evaluation_update', (message: any) => {
         messagesReceived++;
         // Should not receive log messages due to preferences
         expect(message.type).not.toBe('log');
@@ -871,7 +871,7 @@ describe('HASEB Orchestration System Test Suite', () => {
 
           // Mark queue item as complete
           evaluationQueue.complete(item.id, true);
-        } catch (error) {
+        } catch (error: any) {
           console.error(`   ❌ Evaluation failed: ${error.message}`);
           evaluationQueue.complete(item.id, false, error.message);
         }
@@ -1038,7 +1038,7 @@ describe('HASEB Orchestration System Test Suite', () => {
 
   describe('7. System Health and Diagnostics', () => {
     test('✅ Complete system health check', async () => {
-      const healthReport = {
+      const healthReport: any = {
         timestamp: new Date(),
         components: {}
       };
@@ -1091,7 +1091,7 @@ describe('HASEB Orchestration System Test Suite', () => {
       console.log(`   System Uptime: ${Math.floor(healthReport.system.uptime)}s`);
 
       // Verify all components are healthy
-      Object.values(healthReport.components).forEach(component => {
+      Object.values(healthReport.components).forEach((component: any) => {
         expect(component.available || component.status === 'healthy').toBe(true);
       });
 

@@ -5,9 +5,9 @@ import { MetricsCollectionContext, ComprehensiveMetrics } from '@/types/metrics'
 // Mock collectors
 jest.mock('@/services/metrics/PerformanceMetricsCollector', () => ({
   PerformanceMetricsCollector: jest.fn().mockImplementation(() => ({
-    start: jest.fn().mockResolvedValue(undefined),
+    start: jest.fn<(...args: any[]) => any>().mockResolvedValue(undefined),
     stop: jest.fn(),
-    collectMetrics: jest.fn().mockResolvedValue({
+    collectMetrics: jest.fn<(...args: any[]) => any>().mockResolvedValue({
       performance: {
         totalExecutionTime: 1000,
         averageResponseTime: 500,
@@ -15,19 +15,19 @@ jest.mock('@/services/metrics/PerformanceMetricsCollector', () => ({
         cpuUsage: 75.5
       }
     }),
-    getStatus: jest.fn().mockReturnValue({ isActive: false }),
+    getStatus: jest.fn<(...args: any[]) => any>().mockReturnValue({ isActive: false }),
     on: jest.fn(),
     off: jest.fn(),
     emit: jest.fn(),
-    cleanup: jest.fn().mockResolvedValue(undefined)
+    cleanup: jest.fn<(...args: any[]) => any>().mockResolvedValue(undefined)
   }))
 }));
 
 jest.mock('@/services/metrics/EfficiencyMetricsCollector', () => ({
   EfficiencyMetricsCollector: jest.fn().mockImplementation(() => ({
-    start: jest.fn().mockResolvedValue(undefined),
+    start: jest.fn<(...args: any[]) => any>().mockResolvedValue(undefined),
     stop: jest.fn(),
-    collectMetrics: jest.fn().mockResolvedValue({
+    collectMetrics: jest.fn<(...args: any[]) => any>().mockResolvedValue({
       efficiency: {
         throughput: 10,
         totalSteps: 5,
@@ -36,38 +36,38 @@ jest.mock('@/services/metrics/EfficiencyMetricsCollector', () => ({
         peakMemoryUsage: 512000
       }
     }),
-    getStatus: jest.fn().mockReturnValue({ isActive: false }),
+    getStatus: jest.fn<(...args: any[]) => any>().mockReturnValue({ isActive: false }),
     on: jest.fn(),
     off: jest.fn(),
     emit: jest.fn(),
-    cleanup: jest.fn().mockResolvedValue(undefined)
+    cleanup: jest.fn<(...args: any[]) => any>().mockResolvedValue(undefined)
   }))
 }));
 
 jest.mock('@/services/metrics/CostMetricsCollector', () => ({
   CostMetricsCollector: jest.fn().mockImplementation(() => ({
-    start: jest.fn().mockResolvedValue(undefined),
+    start: jest.fn<(...args: any[]) => any>().mockResolvedValue(undefined),
     stop: jest.fn(),
-    collectMetrics: jest.fn().mockResolvedValue({
+    collectMetrics: jest.fn<(...args: any[]) => any>().mockResolvedValue({
       cost: {
         totalTokens: 1000,
         estimatedCost: 0.05,
         tokenBreakdown: { input: 600, output: 400 }
       }
     }),
-    getStatus: jest.fn().mockReturnValue({ isActive: false }),
+    getStatus: jest.fn<(...args: any[]) => any>().mockReturnValue({ isActive: false }),
     on: jest.fn(),
     off: jest.fn(),
     emit: jest.fn(),
-    cleanup: jest.fn().mockResolvedValue(undefined)
+    cleanup: jest.fn<(...args: any[]) => any>().mockResolvedValue(undefined)
   }))
 }));
 
 jest.mock('@/services/metrics/RobustnessMetricsCollector', () => ({
   RobustnessMetricsCollector: jest.fn().mockImplementation(() => ({
-    start: jest.fn().mockResolvedValue(undefined),
+    start: jest.fn<(...args: any[]) => any>().mockResolvedValue(undefined),
     stop: jest.fn(),
-    collectMetrics: jest.fn().mockResolvedValue({
+    collectMetrics: jest.fn<(...args: any[]) => any>().mockResolvedValue({
       robustness: {
         toolCallErrorRate: 0.1,
         recoveryRate: 0.8,
@@ -75,30 +75,30 @@ jest.mock('@/services/metrics/RobustnessMetricsCollector', () => ({
         successfulRecoveries: 8
       }
     }),
-    getStatus: jest.fn().mockReturnValue({ isActive: false }),
+    getStatus: jest.fn<(...args: any[]) => any>().mockReturnValue({ isActive: false }),
     on: jest.fn(),
     off: jest.fn(),
     emit: jest.fn(),
-    cleanup: jest.fn().mockResolvedValue(undefined)
+    cleanup: jest.fn<(...args: any[]) => any>().mockResolvedValue(undefined)
   }))
 }));
 
 jest.mock('@/services/metrics/QualityMetricsCollector', () => ({
   QualityMetricsCollector: jest.fn().mockImplementation(() => ({
-    start: jest.fn().mockResolvedValue(undefined),
+    start: jest.fn<(...args: any[]) => any>().mockResolvedValue(undefined),
     stop: jest.fn(),
-    collectMetrics: jest.fn().mockResolvedValue({
+    collectMetrics: jest.fn<(...args: any[]) => any>().mockResolvedValue({
       quality: {
         toolSelectionAccuracy: 0.85,
         parameterAccuracy: 0.9,
         overallQualityScore: 0.88
       }
     }),
-    getStatus: jest.fn().mockReturnValue({ isActive: false }),
+    getStatus: jest.fn<(...args: any[]) => any>().mockReturnValue({ isActive: false }),
     on: jest.fn(),
     off: jest.fn(),
     emit: jest.fn(),
-    cleanup: jest.fn().mockResolvedValue(undefined)
+    cleanup: jest.fn<(...args: any[]) => any>().mockResolvedValue(undefined)
   }))
 }));
 
@@ -129,12 +129,12 @@ describe('MetricsOrchestrator', () => {
       enableRealTime: true,
       storage: { persistImmediately: false, compressionEnabled: false, retentionDays: 30 },
       validation: { strictMode: true, outlierDetection: false, qualityThreshold: 0.8 }
-    });
+    } as any);
 
     // Mock console methods to reduce noise in tests
-    jest.spyOn(console, 'debug').mockImplementation();
-    jest.spyOn(console, 'warn').mockImplementation();
-    jest.spyOn(console, 'error').mockImplementation();
+    jest.spyOn(console, 'debug').mockImplementation(() => {});
+    jest.spyOn(console, 'warn').mockImplementation(() => {});
+    jest.spyOn(console, 'error').mockImplementation(() => {});
   });
 
   afterEach(async () => {
@@ -179,8 +179,8 @@ describe('MetricsOrchestrator', () => {
     });
 
     it('should collect metrics without throwing', async () => {
-      if (typeof orchestrator.collectAllMetrics === 'function') {
-        await expect(orchestrator.collectAllMetrics()).resolves.not.toThrow();
+      if (typeof (orchestrator as any).collectAllMetrics === 'function') {
+        await expect((orchestrator as any).collectAllMetrics()).resolves.not.toThrow();
       }
     });
 
@@ -194,9 +194,9 @@ describe('MetricsOrchestrator', () => {
     });
 
     it('should get aggregated metrics without throwing', () => {
-      if (typeof orchestrator.getAggregatedMetrics === 'function') {
+      if (typeof (orchestrator as any).getAggregatedMetrics === 'function') {
         expect(() => {
-          const metrics = orchestrator.getAggregatedMetrics();
+          const metrics = (orchestrator as any).getAggregatedMetrics();
           expect(metrics === null || typeof metrics === 'object').toBe(true);
         }).not.toThrow();
       }
@@ -204,8 +204,8 @@ describe('MetricsOrchestrator', () => {
 
     it('should handle metrics collection errors gracefully', async () => {
       // Should not throw even if individual collectors fail
-      if (typeof orchestrator.collectAllMetrics === 'function') {
-        await expect(orchestrator.collectAllMetrics()).resolves.not.toThrow();
+      if (typeof (orchestrator as any).collectAllMetrics === 'function') {
+        await expect((orchestrator as any).collectAllMetrics()).resolves.not.toThrow();
       }
     });
   });
@@ -237,25 +237,25 @@ describe('MetricsOrchestrator', () => {
 
   describe('Status and Monitoring', () => {
     it('should provide status information', () => {
-      if (typeof orchestrator.getStatus === 'function') {
-        const status = orchestrator.getStatus();
+      if (typeof (orchestrator as any).getStatus === 'function') {
+        const status = (orchestrator as any).getStatus();
         expect(status).toBeDefined();
         expect(typeof status).toBe('object');
       }
     });
 
     it('should check if active', () => {
-      if (typeof orchestrator.isActive === 'function') {
-        expect(typeof orchestrator.isActive()).toBe('boolean');
+      if (typeof (orchestrator as any).isActive === 'function') {
+        expect(typeof (orchestrator as any).isActive()).toBe('boolean');
       }
     });
 
     it('should handle status queries during execution', async () => {
       await orchestrator.start();
 
-      if (typeof orchestrator.getStatus === 'function') {
+      if (typeof (orchestrator as any).getStatus === 'function') {
         for (let i = 0; i < 3; i++) {
-          const status = orchestrator.getStatus();
+          const status = (orchestrator as any).getStatus();
           expect(status).toBeDefined();
           await new Promise(resolve => setTimeout(resolve, 10));
         }
@@ -316,7 +316,7 @@ describe('MetricsOrchestrator', () => {
         collectionInterval: 200,
         batchSize: 20,
         enableRealTime: false
-      });
+      } as any);
 
       expect(customOrchestrator).toBeDefined();
     });
@@ -332,13 +332,13 @@ describe('MetricsOrchestrator', () => {
       await orchestrator.start();
 
       // Collect metrics
-      if (typeof orchestrator.collectAllMetrics === 'function') {
-        await orchestrator.collectAllMetrics();
+      if (typeof (orchestrator as any).collectAllMetrics === 'function') {
+        await (orchestrator as any).collectAllMetrics();
       }
 
       // Get status
-      if (typeof orchestrator.getStatus === 'function') {
-        orchestrator.getStatus();
+      if (typeof (orchestrator as any).getStatus === 'function') {
+        (orchestrator as any).getStatus();
       }
 
       // Stop

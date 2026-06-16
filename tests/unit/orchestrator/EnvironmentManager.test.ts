@@ -29,10 +29,10 @@ jest.mock('uuid', () => ({
 }));
 
 describe('EnvironmentManager', () => {
-  let environmentManager: EnvironmentManager;
+  let environmentManager: any;
 
   beforeEach(() => {
-    environmentManager = new EnvironmentManager({
+    environmentManager = new (EnvironmentManager as any)({
       defaultEnvironmentType: 'local',
       resourceLimits: {
         maxCpu: 4,
@@ -43,9 +43,9 @@ describe('EnvironmentManager', () => {
     });
 
     // Mock console methods to reduce noise
-    jest.spyOn(console, 'log').mockImplementation();
-    jest.spyOn(console, 'warn').mockImplementation();
-    jest.spyOn(console, 'error').mockImplementation();
+    jest.spyOn(console, 'log').mockImplementation(() => {});
+    jest.spyOn(console, 'warn').mockImplementation(() => {});
+    jest.spyOn(console, 'error').mockImplementation(() => {});
   });
 
   afterEach(() => {
@@ -62,7 +62,7 @@ describe('EnvironmentManager', () => {
     });
 
     it('should accept custom configuration', () => {
-      const customManager = new EnvironmentManager({
+      const customManager = new (EnvironmentManager as any)({
         defaultEnvironmentType: 'docker',
         resourceLimits: {
           maxCpu: 8,
@@ -79,7 +79,7 @@ describe('EnvironmentManager', () => {
 
   describe('Environment Creation', () => {
     it('should create environment without throwing', async () => {
-      const requirements: EnvironmentRequirements = {
+      const requirements: any = {
         type: 'local',
         resources: {
           cpu: 2,
@@ -95,7 +95,7 @@ describe('EnvironmentManager', () => {
     });
 
     it('should handle environment creation errors gracefully', async () => {
-      const requirements: EnvironmentRequirements = {
+      const requirements: any = {
         type: 'docker',
         resources: {
           cpu: 16, // Exceeds max limit
@@ -111,7 +111,7 @@ describe('EnvironmentManager', () => {
     });
 
     it('should create multiple environments', async () => {
-      const requirements: EnvironmentRequirements = {
+      const requirements: any = {
         type: 'local',
         resources: {
           cpu: 1,
@@ -132,7 +132,7 @@ describe('EnvironmentManager', () => {
 
   describe('Environment Management', () => {
     it('should stop environment without throwing', async () => {
-      const requirements: EnvironmentRequirements = {
+      const requirements: any = {
         type: 'local',
         resources: { cpu: 1, memory: 1024, disk: 1 },
         timeout: 300000,
@@ -150,7 +150,7 @@ describe('EnvironmentManager', () => {
     });
 
     it('should cleanup environments without throwing', async () => {
-      const requirements: EnvironmentRequirements = {
+      const requirements: any = {
         type: 'local',
         resources: { cpu: 1, memory: 1024, disk: 1 },
         timeout: 300000,
@@ -166,7 +166,7 @@ describe('EnvironmentManager', () => {
 
   describe('Resource Management', () => {
     it('should track environment resources', async () => {
-      const requirements: EnvironmentRequirements = {
+      const requirements: any = {
         type: 'local',
         resources: { cpu: 2, memory: 4096, disk: 20 },
         timeout: 300000,
@@ -179,7 +179,7 @@ describe('EnvironmentManager', () => {
     });
 
     it('should handle resource limit validation', async () => {
-      const requirements: EnvironmentRequirements = {
+      const requirements: any = {
         type: 'local',
         resources: { cpu: 10, memory: 32768, disk: 1000 }, // Exceeds limits
         timeout: 300000,
@@ -193,7 +193,7 @@ describe('EnvironmentManager', () => {
 
   describe('Environment Status', () => {
     it('should track environment status', async () => {
-      const requirements: EnvironmentRequirements = {
+      const requirements: any = {
         type: 'local',
         resources: { cpu: 1, memory: 1024, disk: 1 },
         timeout: 300000,
@@ -204,7 +204,7 @@ describe('EnvironmentManager', () => {
     });
 
     it('should get environment status', async () => {
-      const requirements: EnvironmentRequirements = {
+      const requirements: any = {
         type: 'local',
         resources: { cpu: 1, memory: 1024, disk: 1 },
         timeout: 300000,
@@ -227,7 +227,7 @@ describe('EnvironmentManager', () => {
       environmentManager.on('environment:created', mockListener);
       environmentManager.on('environment:stopped', mockListener);
 
-      const requirements: EnvironmentRequirements = {
+      const requirements: any = {
         type: 'local',
         resources: { cpu: 1, memory: 1024, disk: 1 },
         timeout: 300000,
@@ -245,7 +245,7 @@ describe('EnvironmentManager', () => {
 
   describe('Error Handling', () => {
     it('should handle concurrent environment operations', async () => {
-      const requirements: EnvironmentRequirements = {
+      const requirements: any = {
         type: 'local',
         resources: { cpu: 1, memory: 1024, disk: 1 },
         timeout: 300000,
@@ -267,7 +267,7 @@ describe('EnvironmentManager', () => {
     });
 
     it('should handle environment timeout', async () => {
-      const requirements: EnvironmentRequirements = {
+      const requirements: any = {
         type: 'local',
         resources: { cpu: 1, memory: 1024, disk: 1 },
         timeout: 1, // Very short timeout
@@ -296,7 +296,7 @@ describe('EnvironmentManager', () => {
     });
 
     it('should handle cleanup with failed environments', async () => {
-      const requirements: EnvironmentRequirements = {
+      const requirements: any = {
         type: 'local',
         resources: { cpu: 1, memory: 1024, disk: 1 },
         timeout: 300000,

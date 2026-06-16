@@ -142,7 +142,7 @@ describe('useRealTimeUpdates', () => {
 
     it('should handle initial data fetch errors', async () => {
       const { apiService } = require('@/services/api');
-      const consoleSpy = jest.spyOn(console, 'error').mockImplementation();
+      const consoleSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
 
       apiService.getAgents.mockRejectedValue(new Error('API Error'));
       apiService.getEvaluations.mockRejectedValue(new Error('API Error'));
@@ -211,7 +211,7 @@ describe('useRealTimeUpdates', () => {
 
   describe('Error Handling', () => {
     it('should handle WebSocket connection errors', () => {
-      const consoleSpy = jest.spyOn(console, 'error').mockImplementation();
+      const consoleSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
 
       // Mock WebSocket to throw
       global.WebSocket = jest.fn().mockImplementation(() => {
@@ -229,13 +229,13 @@ describe('useRealTimeUpdates', () => {
     });
 
     it('should handle WebSocket errors', () => {
-      const consoleSpy = jest.spyOn(console, 'error').mockImplementation();
+      const consoleSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
 
       renderHook(() => useRealTimeUpdates(true));
 
       // Simulate WebSocket error
       if (mockWebSocket.onerror) {
-        mockWebSocket.onerror(new Event('error'));
+        (mockWebSocket.onerror as any)(new Event('error'));
       }
 
       expect(consoleSpy).toHaveBeenCalled();
@@ -243,13 +243,13 @@ describe('useRealTimeUpdates', () => {
     });
 
     it('should handle WebSocket disconnection', () => {
-      const consoleSpy = jest.spyOn(console, 'log').mockImplementation();
+      const consoleSpy = jest.spyOn(console, 'log').mockImplementation(() => {});
 
       renderHook(() => useRealTimeUpdates(true));
 
       // Simulate WebSocket close
       if (mockWebSocket.onclose) {
-        mockWebSocket.onclose(new CloseEvent('close'));
+        (mockWebSocket.onclose as any)(new CloseEvent('close'));
       }
 
       expect(consoleSpy).toHaveBeenCalled();

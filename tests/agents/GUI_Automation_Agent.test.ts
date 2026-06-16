@@ -115,7 +115,7 @@ describe('GUI_Automation_Agent', () => {
       agent['currentTask'] = {
         taskId: 'web-task',
         environment: { type: 'web' }
-      };
+      } as any;
 
       const setupBrowserSpy = jest.spyOn(agent as any, 'setupBrowser');
       setupBrowserSpy.mockResolvedValue(undefined);
@@ -449,7 +449,7 @@ describe('GUI_Automation_Agent', () => {
 
   describe('Cleanup', () => {
     it('should cleanup GUI environment correctly', async () => {
-      agent['dockerContainer'] = 'test-container';
+      (agent as any)['dockerContainer'] = 'test-container';
       agent['virtualDisplay'] = 99;
       agent['screenshots'] = ['/tmp/screenshot1.png', '/tmp/screenshot2.png'];
 
@@ -576,7 +576,7 @@ describe('GUI_Automation_Agent', () => {
       };
 
       const processWebTaskSpy = jest.spyOn(agent as any, 'processWebTask');
-      processWebTaskSpy.mockImplementation(async function(this: GUI_Automation_Agent, task) {
+      processWebTaskSpy.mockImplementation(async function(this: GUI_Automation_Agent, task: any) {
         // Simulate processing steps
         for (let i = 0; i < task.instructions.length; i++) {
           if (!this['isRunning'] || this['stepCount'] >= this['maxSteps']) {

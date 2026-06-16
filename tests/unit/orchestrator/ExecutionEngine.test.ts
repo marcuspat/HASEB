@@ -43,9 +43,9 @@ describe('ExecutionEngine', () => {
     engine = new ExecutionEngine(5, 300000);
 
     // Mock console methods to reduce noise
-    jest.spyOn(console, 'log').mockImplementation();
-    jest.spyOn(console, 'warn').mockImplementation();
-    jest.spyOn(console, 'error').mockImplementation();
+    jest.spyOn(console, 'log').mockImplementation(() => {});
+    jest.spyOn(console, 'warn').mockImplementation(() => {});
+    jest.spyOn(console, 'error').mockImplementation(() => {});
   });
 
   afterEach(() => {
@@ -118,7 +118,7 @@ describe('ExecutionEngine', () => {
         configuration: {},
       };
 
-      await expect(engine.executeTask(evaluationId, task, config))
+      await expect(engine.executeTask(evaluationId, task as any, config))
         .resolves.not.toThrow();
     });
 
@@ -136,7 +136,7 @@ describe('ExecutionEngine', () => {
         configuration: {},
       };
 
-      await expect(engine.executeTask('', task, config))
+      await expect(engine.executeTask('', task as any, config))
         .resolves.not.toThrow();
     });
 
@@ -207,7 +207,7 @@ describe('ExecutionEngine', () => {
           configuration: {},
         };
 
-        await expect(engine.executeTask(evaluationId, task, config))
+        await expect(engine.executeTask(evaluationId, task as any, config))
           .resolves.not.toThrow();
       }
     });
@@ -229,7 +229,7 @@ describe('ExecutionEngine', () => {
       };
 
       const promises = tasks.map(task =>
-        engine.executeTask(evaluationId, task, config)
+        engine.executeTask(evaluationId, task as any, config)
       );
 
       await expect(Promise.all(promises)).resolves.not.toThrow();
@@ -253,7 +253,7 @@ describe('ExecutionEngine', () => {
         configuration: {},
       };
 
-      await expect(engine.executeTask(evaluationId, task, config))
+      await expect(engine.executeTask(evaluationId, task as any, config))
         .resolves.not.toThrow();
     });
 
@@ -273,7 +273,7 @@ describe('ExecutionEngine', () => {
         configuration: { timeout: 1 }, // Very short timeout
       };
 
-      await expect(engine.executeTask(evaluationId, task, config))
+      await expect(engine.executeTask(evaluationId, task as any, config))
         .resolves.not.toThrow();
     });
 
@@ -296,7 +296,7 @@ describe('ExecutionEngine', () => {
       ];
 
       for (const config of invalidConfigs) {
-        await expect(engine.executeTask(evaluationId, task, config as any))
+        await expect(engine.executeTask(evaluationId, task as any, config as any))
           .resolves.not.toThrow();
       }
     });
@@ -326,7 +326,7 @@ describe('ExecutionEngine', () => {
           configuration: {},
         };
 
-        await expect(engine.executeTask(evaluationId, task, config))
+        await expect(engine.executeTask(evaluationId, task as any, config))
           .resolves.not.toThrow();
       }
     });
@@ -347,7 +347,7 @@ describe('ExecutionEngine', () => {
         configuration: {},
       };
 
-      await expect(engine.executeTask(evaluationId, task, config))
+      await expect(engine.executeTask(evaluationId, task as any, config))
         .resolves.not.toThrow();
     });
   });
@@ -375,7 +375,7 @@ describe('ExecutionEngine', () => {
         },
       };
 
-      await expect(engine.executeTask(evaluationId, task, config))
+      await expect(engine.executeTask(evaluationId, task as any, config))
         .resolves.not.toThrow();
     });
 
@@ -397,7 +397,7 @@ describe('ExecutionEngine', () => {
         },
       };
 
-      await expect(engine.executeTask(evaluationId, task, config))
+      await expect(engine.executeTask(evaluationId, task as any, config))
         .resolves.not.toThrow();
     });
   });
@@ -430,7 +430,7 @@ describe('ExecutionEngine', () => {
       };
 
       // Start task (don't await)
-      const taskPromise = engine.executeTask(evaluationId, task, config);
+      const taskPromise = engine.executeTask(evaluationId, task as any, config);
 
       // Shutdown while task might be running
       await expect(engine.shutdown()).resolves.not.toThrow();
@@ -462,7 +462,7 @@ describe('ExecutionEngine', () => {
         configuration: {},
       };
 
-      await expect(engine.executeTask(evaluationId, task, config))
+      await expect(engine.executeTask(evaluationId, task as any, config))
         .resolves.not.toThrow();
 
       // Events should not cause errors
@@ -496,7 +496,7 @@ describe('ExecutionEngine', () => {
       };
 
       // Should not throw even if listeners fail
-      await expect(engine.executeTask(evaluationId, task, config))
+      await expect(engine.executeTask(evaluationId, task as any, config))
         .resolves.not.toThrow();
 
       engine.removeAllListeners();
@@ -523,7 +523,7 @@ describe('ExecutionEngine', () => {
       };
 
       const promises = tasks.map(task =>
-        limitedEngine.executeTask(evaluationId, task, config)
+        limitedEngine.executeTask(evaluationId, task as any, config)
       );
 
       await expect(Promise.all(promises)).resolves.not.toThrow();
@@ -548,7 +548,7 @@ describe('ExecutionEngine', () => {
       };
 
       const promises = tasks.map(task =>
-        engine.executeTask(evaluationId, task, config)
+        engine.executeTask(evaluationId, task as any, config)
       );
 
       await expect(Promise.all(promises)).resolves.not.toThrow();
@@ -581,7 +581,7 @@ describe('ExecutionEngine', () => {
         configuration: { timeout: 30000 },
       };
 
-      await expect(engine.executeTask(evaluationId, task, config))
+      await expect(engine.executeTask(evaluationId, task as any, config))
         .resolves.not.toThrow();
 
       // Shutdown
@@ -605,7 +605,7 @@ describe('ExecutionEngine', () => {
       };
 
       // Should handle failure gracefully
-      await expect(engine.executeTask(evaluationId, failingTask, config))
+      await expect(engine.executeTask(evaluationId, failingTask as any, config))
         .resolves.not.toThrow();
 
       // Should be able to execute subsequent tasks
@@ -617,7 +617,7 @@ describe('ExecutionEngine', () => {
         expected_output: {},
       };
 
-      await expect(engine.executeTask(evaluationId, recoveryTask, config))
+      await expect(engine.executeTask(evaluationId, recoveryTask as any, config))
         .resolves.not.toThrow();
     });
   });

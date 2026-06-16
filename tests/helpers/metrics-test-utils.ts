@@ -278,8 +278,8 @@ export function validateRobustnessMetrics(metrics: RobustnessMetrics): string[] 
   if (metrics.errorCounts.total < 0) {
     errors.push(`Invalid errorCounts.total: ${metrics.errorCounts.total}`);
   }
-  if (metrics.availability < 0 || metrics.availability > 1) {
-    errors.push(`Invalid availability: ${metrics.availability}`);
+  if ((metrics as any).availability < 0 || (metrics as any).availability > 1) {
+    errors.push(`Invalid availability: ${(metrics as any).availability}`);
   }
 
   return errors;

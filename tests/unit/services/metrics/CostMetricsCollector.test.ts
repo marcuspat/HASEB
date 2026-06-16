@@ -14,8 +14,8 @@ jest.mock('@/utils/logger', () => ({
 
 jest.mock('@/database/models/Evaluation', () => ({
   EvaluationModel: {
-    findById: jest.fn().mockResolvedValue(null),
-    updateMetrics: jest.fn().mockResolvedValue(true),
+    findById: jest.fn<(...args: any[]) => any>().mockResolvedValue(null),
+    updateMetrics: jest.fn<(...args: any[]) => any>().mockResolvedValue(true),
   },
 }));
 
@@ -49,9 +49,9 @@ describe('CostMetricsCollector', () => {
     });
 
     // Mock console methods to reduce noise in tests
-    jest.spyOn(console, 'debug').mockImplementation();
-    jest.spyOn(console, 'warn').mockImplementation();
-    jest.spyOn(console, 'error').mockImplementation();
+    jest.spyOn(console, 'debug').mockImplementation(() => {});
+    jest.spyOn(console, 'warn').mockImplementation(() => {});
+    jest.spyOn(console, 'error').mockImplementation(() => {});
   });
 
   afterEach(() => {
@@ -87,7 +87,7 @@ describe('CostMetricsCollector', () => {
     beforeEach(async () => {
       await collector.start();
       // Mock the emit method to prevent infinite recursion
-      jest.spyOn(collector as any, 'emit').mockImplementation();
+      jest.spyOn(collector as any, 'emit').mockImplementation(() => {});
     });
 
     it('should record token usage without throwing', () => {
@@ -134,7 +134,7 @@ describe('CostMetricsCollector', () => {
     beforeEach(async () => {
       await collector.start();
       // Mock the emit method to prevent infinite recursion
-      jest.spyOn(collector as any, 'emit').mockImplementation();
+      jest.spyOn(collector as any, 'emit').mockImplementation(() => {});
     });
 
     it('should record API calls without throwing', () => {
@@ -176,7 +176,7 @@ describe('CostMetricsCollector', () => {
     beforeEach(async () => {
       await collector.start();
       // Mock the emit method to prevent infinite recursion
-      jest.spyOn(collector as any, 'emit').mockImplementation();
+      jest.spyOn(collector as any, 'emit').mockImplementation(() => {});
     });
 
     it('should record resource costs without throwing', () => {
@@ -204,7 +204,7 @@ describe('CostMetricsCollector', () => {
     beforeEach(async () => {
       await collector.start();
       // Mock the emit method to prevent infinite recursion
-      jest.spyOn(collector as any, 'emit').mockImplementation();
+      jest.spyOn(collector as any, 'emit').mockImplementation(() => {});
     });
 
     it('should have getStatus method that returns expected structure', () => {
@@ -266,7 +266,7 @@ describe('CostMetricsCollector', () => {
 
     it('should not throw when recording methods that emit events (with mocked emit)', () => {
       // Mock emit to prevent infinite recursion
-      jest.spyOn(collector as any, 'emit').mockImplementation();
+      jest.spyOn(collector as any, 'emit').mockImplementation(() => {});
 
       expect(() => {
         collector.recordTokenUsage('gpt-4', 100, 50);
@@ -280,7 +280,7 @@ describe('CostMetricsCollector', () => {
     beforeEach(async () => {
       await collector.start();
       // Mock the emit method to prevent infinite recursion
-      jest.spyOn(collector as any, 'emit').mockImplementation();
+      jest.spyOn(collector as any, 'emit').mockImplementation(() => {});
     });
 
     it('should handle very large token numbers', () => {
@@ -314,7 +314,7 @@ describe('CostMetricsCollector', () => {
     it('should cleanup resources on stop', async () => {
       await collector.start();
       // Mock emit to prevent infinite recursion
-      jest.spyOn(collector as any, 'emit').mockImplementation();
+      jest.spyOn(collector as any, 'emit').mockImplementation(() => {});
       collector.recordTokenUsage('gpt-4', 100, 50);
 
       expect(() => {
@@ -326,7 +326,7 @@ describe('CostMetricsCollector', () => {
 
     it('should handle multiple start/stop cycles', async () => {
       // Mock emit to prevent infinite recursion
-      jest.spyOn(collector as any, 'emit').mockImplementation();
+      jest.spyOn(collector as any, 'emit').mockImplementation(() => {});
 
       for (let i = 0; i < 3; i++) {
         await collector.start();
@@ -356,7 +356,7 @@ describe('CostMetricsCollector', () => {
     beforeEach(async () => {
       await collector.start();
       // Mock the emit method to prevent infinite recursion
-      jest.spyOn(collector as any, 'emit').mockImplementation();
+      jest.spyOn(collector as any, 'emit').mockImplementation(() => {});
     });
 
     it('should simulate complete cost tracking scenario', () => {

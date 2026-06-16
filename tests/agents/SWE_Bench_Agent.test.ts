@@ -168,7 +168,7 @@ describe('SWE_Bench_Agent', () => {
 
       const executeTasksSpy = jest.spyOn(agent as any, 'executeTasks');
       executeTasksSpy.mockImplementation(async function(this: SWE_Bench_Agent) {
-        const result = await this['processSWEBenchTask'](mockTask);
+        const result = await this['processSWEBenchTask'](mockTask as any);
         expect(result.success).toBe(true);
         expect(result.tokensUsed).toBe(100);
         expect(result.cost).toBe(0.01);
@@ -385,7 +385,7 @@ test_another.py ..
 
       const executeTasksSpy = jest.spyOn(agent as any, 'executeTasks');
       executeTasksSpy.mockImplementation(async function(this: SWE_Bench_Agent) {
-        const result = await this['processSWEBenchTask'](mockTask);
+        const result = await this['processSWEBenchTask'](mockTask as any);
         expect(result.success).toBe(false);
         expect(result.error).toBe('Task processing failed');
         expect(result.errorRecovered).toBe(true);

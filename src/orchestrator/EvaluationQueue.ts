@@ -21,7 +21,7 @@ export class EvaluationQueue extends EventEmitter {
     this.maxConcurrent = maxConcurrent;
     this.processing = false;
 
-    this.startProcessing();
+    this.startQueueProcessing();
   }
 
   async enqueue(item: Omit<QueueItem, 'id' | 'createdAt' | 'retryCount'>): Promise<QueueItem> {
@@ -78,7 +78,7 @@ export class EvaluationQueue extends EventEmitter {
     this.queue.splice(insertIndex, 0, item);
   }
 
-  private async startProcessing(): Promise<void> {
+  private async startQueueProcessing(): Promise<void> {
     this.processing = true;
     logger.info('Evaluation queue processing started');
 
@@ -100,7 +100,7 @@ export class EvaluationQueue extends EventEmitter {
           benchmarkId: evaluation.benchmarkId,
           configuration: evaluation.configuration,
           priority: 'medium', // Default priority for loaded items
-          createdAt: evaluation.createdAt,
+          createdAt: evaluation.createdAt as any,
           retryCount: 0,
           maxRetries: 3
         };

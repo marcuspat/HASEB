@@ -80,7 +80,7 @@ export class EvaluationModel {
 
     const result = await db.query(query, [agentId, limit, offset]);
 
-    const evaluations = result.rows.map(row => ({
+    const evaluations = result.rows.map((row: any) => ({
       id: row.id,
       agentId: row.agent_id,
       benchmarkId: row.benchmark_id,
@@ -114,7 +114,7 @@ export class EvaluationModel {
 
     const result = await db.query(query, [benchmarkId, limit, offset]);
 
-    const evaluations = result.rows.map(row => ({
+    const evaluations = result.rows.map((row: any) => ({
       id: row.id,
       agentId: row.agent_id,
       benchmarkId: row.benchmark_id,
@@ -148,7 +148,7 @@ export class EvaluationModel {
 
     const result = await db.query(query, [status, limit, offset]);
 
-    const evaluations = result.rows.map(row => ({
+    const evaluations = result.rows.map((row: any) => ({
       id: row.id,
       agentId: row.agent_id,
       benchmarkId: row.benchmark_id,
@@ -199,7 +199,7 @@ export class EvaluationModel {
     params.push(limit, offset);
     const result = await db.query(query, params);
 
-    const evaluations = result.rows.map(row => ({
+    const evaluations = result.rows.map((row: any) => ({
       id: row.id,
       agentId: row.agent_id,
       benchmarkId: row.benchmark_id,
@@ -290,7 +290,7 @@ export class EvaluationModel {
     const query = 'SELECT * FROM evaluations WHERE status = $1 ORDER BY created_at ASC';
     const result = await db.query(query, ['running']);
 
-    return result.rows.map(row => ({
+    return result.rows.map((row: any) => ({
       id: row.id,
       agentId: row.agent_id,
       benchmarkId: row.benchmark_id,

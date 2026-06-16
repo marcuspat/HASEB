@@ -53,7 +53,7 @@ const mockBenchmark: Benchmark = {
 const mockLeaderboardEntry: LeaderboardEntry = {
   rank: 1,
   agent: mockAgent,
-  metrics: mockAgent.performance,
+  metrics: mockAgent.performance!,
   benchmark: mockBenchmark,
   overallScore: 92.5,
   trend: 'up',

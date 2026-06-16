@@ -24,12 +24,12 @@ interface SubscriptionInfo {
 }
 
 export class WebSocketManager {
-  private io: SocketIOServer;
+  private io!: SocketIOServer;
   private clients: Map<string, ClientInfo>;
   private subscriptions: Map<string, SubscriptionInfo>;
   private messageQueue: Map<string, WebSocketMessage[]>;
   private rateLimiters: Map<string, { count: number; resetTime: number }>;
-  private heartbeatInterval: NodeJS.Timeout;
+  private heartbeatInterval!: NodeJS.Timeout;
 
   constructor() {
     this.clients = new Map();

@@ -14,8 +14,8 @@ jest.mock('@/utils/logger', () => ({
 
 jest.mock('@/database/models/Evaluation', () => ({
   EvaluationModel: {
-    findById: jest.fn().mockResolvedValue(null),
-    updateMetrics: jest.fn().mockResolvedValue(true),
+    findById: jest.fn<(...args: any[]) => any>().mockResolvedValue(null),
+    updateMetrics: jest.fn<(...args: any[]) => any>().mockResolvedValue(true),
   },
 }));
 
@@ -49,9 +49,9 @@ describe('RobustnessMetricsCollector', () => {
     });
 
     // Mock console methods to reduce noise in tests
-    jest.spyOn(console, 'debug').mockImplementation();
-    jest.spyOn(console, 'warn').mockImplementation();
-    jest.spyOn(console, 'error').mockImplementation();
+    jest.spyOn(console, 'debug').mockImplementation(() => {});
+    jest.spyOn(console, 'warn').mockImplementation(() => {});
+    jest.spyOn(console, 'error').mockImplementation(() => {});
   });
 
   afterEach(() => {
@@ -250,7 +250,7 @@ describe('RobustnessMetricsCollector', () => {
     it('should handle metrics collection without throwing', () => {
       collector.recordError('transient', 'network', 'Network timeout');
       collector.recordRecoveryAttempt(
-        collector['state'].errors.keys().next().value,
+        collector['state'].errors.keys().next().value as any,
         'retry',
         true,
         1000

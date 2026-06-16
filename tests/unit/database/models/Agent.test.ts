@@ -25,7 +25,7 @@ jest.mock('@/utils/logger', () => ({
 }));
 
 // Mock the database connection module more completely
-const mockQuery = jest.fn();
+const mockQuery = jest.fn<(...args: any[]) => any>();
 
 jest.mock('@/database/connection', () => {
   const mockDb = {
@@ -79,7 +79,7 @@ describe('AgentModel', () => {
 
       mockQuery.mockResolvedValue(mockResult);
 
-      const result = await AgentModel.create(agentData);
+      const result = await AgentModel.create(agentData as any);
 
       expect(mockQuery).toHaveBeenCalledWith(
         expect.stringContaining('INSERT INTO agents'),
@@ -110,7 +110,7 @@ describe('AgentModel', () => {
 
       mockQuery.mockRejectedValue(new Error('Database connection failed'));
 
-      await expect(AgentModel.create(agentData)).rejects.toThrow('Database connection failed');
+      await expect(AgentModel.create(agentData as any)).rejects.toThrow('Database connection failed');
     });
 
     it('should create agent with default values', async () => {
@@ -135,7 +135,7 @@ describe('AgentModel', () => {
 
       mockQuery.mockResolvedValue(mockResult);
 
-      const result = await AgentModel.create(agentData);
+      const result = await AgentModel.create(agentData as any);
 
       expect(result.id).toBe('agent-456');
       expect(result.name).toBe('Minimal Agent');
@@ -366,7 +366,7 @@ describe('AgentModel', () => {
 
       mockQuery.mockResolvedValue(mockResult);
 
-      const result = await AgentModel.list(1, 10, { type: 'language-model' });
+      const result = await AgentModel.list(1, 10, { type: 'language-model' } as any);
 
       expect(mockQuery).toHaveBeenCalledWith(
         'SELECT id, name, type, description, capabilities, configuration, status, created_at, updated_at FROM agents WHERE type = $1 ORDER BY created_at DESC LIMIT $2 OFFSET $3',
@@ -393,7 +393,7 @@ describe('AgentModel', () => {
 
       mockQuery.mockResolvedValue(mockResult);
 
-      const result = await AgentModel.list(1, 10, { status: 'active' });
+      const result = await AgentModel.list(1, 10, { status: 'active' } as any);
 
       expect(mockQuery).toHaveBeenCalledWith(
         'SELECT id, name, type, description, capabilities, configuration, status, created_at, updated_at FROM agents WHERE status = $1 ORDER BY created_at DESC LIMIT $2 OFFSET $3',
@@ -690,7 +690,7 @@ describe('AgentModel', () => {
         ['%search test%', '%search test%']
       );
       expect(result).toHaveLength(1);
-      expect(result[0].name).toContain('Search Test');
+      expect((result as any)[0].name).toContain('Search Test');
     });
 
     it('should return empty for no matches', async () => {

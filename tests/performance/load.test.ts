@@ -435,7 +435,7 @@ describe('Load Testing', () => {
             workerResults.push({
               workerId,
               operationType: 'error',
-              error: error.message,
+              error: (error as any).message,
               timestamp: Date.now(),
             });
           }

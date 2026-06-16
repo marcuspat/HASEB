@@ -166,7 +166,7 @@ describe('HASEB Orchestration System Validation Tests', () => {
       });
 
       const successful = results.filter(r => r.status === 'completed').length;
-      const averageDuration = results.reduce((sum, r) => sum + r.duration, 0) / results.length;
+      const averageDuration = results.reduce((sum, r) => sum + (r.duration as any), 0) / results.length;
       const totalTokens = results.reduce((sum, r) => sum + r.tokensUsed, 0);
       const totalCost = results.reduce((sum, r) => sum + r.cost, 0);
 

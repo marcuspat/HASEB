@@ -181,7 +181,7 @@ describe('Authentication Security Tests', () => {
       );
 
       const decoded = jwt.decode(token, { complete: true });
-      expect(decoded.header.alg).toBe('HS256');
+      expect((decoded as any).header.alg).toBe('HS256');
     });
 
     test('should include proper token claims', async () => {

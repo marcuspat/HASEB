@@ -8,29 +8,29 @@ dotenv.config({ path: '.env.test' });
 // Mock database modules
 jest.mock('@/database/connection', () => ({
   db: {
-    query: jest.fn().mockResolvedValue({ rows: [] }),
-    getClient: jest.fn().mockResolvedValue({
-      query: jest.fn().mockResolvedValue({ rows: [] }),
+    query: jest.fn(() => Promise.resolve({ rows: [] })),
+    getClient: jest.fn(() => Promise.resolve({
+      query: jest.fn(() => Promise.resolve({ rows: [] })),
       release: jest.fn(),
-    }),
-    testConnection: jest.fn().mockResolvedValue(true),
-    close: jest.fn().mockResolvedValue(undefined),
+    })),
+    testConnection: jest.fn(() => Promise.resolve(true)),
+    close: jest.fn(() => Promise.resolve(undefined)),
   },
-  DatabaseManager: jest.fn().mockImplementation(() => ({
-    initialize: jest.fn().mockResolvedValue(true),
-    query: jest.fn().mockResolvedValue({ rows: [] }),
-    close: jest.fn().mockResolvedValue(undefined),
+  DatabaseManager: jest.fn(() => ({
+    initialize: jest.fn(() => Promise.resolve(true)),
+    query: jest.fn(() => Promise.resolve({ rows: [] })),
+    close: jest.fn(() => Promise.resolve(undefined)),
   })),
 }));
 
 // Mock Winston logger
 jest.mock('winston', () => ({
-  createLogger: jest.fn().mockReturnValue({
+  createLogger: jest.fn(() => ({
     info: jest.fn(),
     warn: jest.fn(),
     error: jest.fn(),
     debug: jest.fn(),
-  }),
+  })),
   format: {
     combine: jest.fn(),
     timestamp: jest.fn(),
@@ -59,8 +59,8 @@ beforeAll(async () => {
   process.env.VITE_WS_URL = 'ws://localhost:3001';
 
   // Mock import.meta.env for Vite environment variables
-  global.import = global.import || {};
-  global.import.meta = {
+  (global as any).import = (global as any).import || {};
+  (global as any).import.meta = {
     env: {
       VITE_API_URL: 'http://localhost:3001/api',
       VITE_WS_URL: 'ws://localhost:3001',

@@ -1,3 +1,4 @@
+/// <reference types="vite/client" />
 import { useEffect, useRef } from 'react';
 import { useDashboardStore } from '../store/useDashboardStore';
 import { apiService } from '../services/api';

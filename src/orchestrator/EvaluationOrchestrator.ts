@@ -35,7 +35,7 @@ interface LangGraphNodes {
 
 export class EvaluationOrchestrator {
   private metricsOrchestrator?: MetricsOrchestrator;
-  private graph?: CompiledGraph<EvaluationState>;
+  private graph?: any;
   private isRunning: boolean = false;
   private currentEvaluation?: EvaluationState;
 
@@ -153,7 +153,7 @@ export class EvaluationOrchestrator {
       );
 
       if (finalMetrics) {
-        await EvaluationModel.updateMetrics(finalState.id, finalMetrics);
+        await EvaluationModel.updateMetrics(finalState.id, finalMetrics as any);
       }
 
       logger.info(`Evaluation ${finalState.id} completed`, {
@@ -271,7 +271,7 @@ export class EvaluationOrchestrator {
   /**
    * Build the LangGraph evaluation workflow
    */
-  private buildEvaluationGraph(): CompiledGraph<EvaluationState> {
+  private buildEvaluationGraph(): any {
     const nodes: LangGraphNodes = {
       setup: async (state: EvaluationState): Promise<EvaluationState> => {
         logger.debug(`Setting up evaluation ${state.id}`);
@@ -392,7 +392,7 @@ export class EvaluationOrchestrator {
     };
 
     // Build the graph with edges
-    const graph = new StateGraph<EvaluationState>({
+    const graph: any = new (StateGraph as any)({
       channels: {},
     });
 
@@ -478,7 +478,7 @@ export class EvaluationOrchestrator {
    */
   public async collectMetrics(): Promise<void> {
     if (this.metricsOrchestrator && this.currentEvaluation) {
-      await this.metricsOrchestrator.collectMetrics();
+      await (this.metricsOrchestrator as any).collectMetrics();
     }
   }
 

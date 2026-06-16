@@ -16,7 +16,7 @@ import {
 
 // Mock date-fns
 jest.mock('date-fns', () => ({
-  format: jest.fn((date, formatStr) => {
+  format: jest.fn((date: any, formatStr: any) => {
     if (formatStr === 'MMM dd, yyyy HH:mm') {
       return 'Jan 15, 2024 14:30';
     }

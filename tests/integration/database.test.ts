@@ -1,9 +1,15 @@
 import { DatabaseConnection } from '@/database/connection';
 import { MigrationManager } from '@/database/migrations';
-import { AgentModel } from '@/database/models/Agent';
-import { BenchmarkModel } from '@/database/models/Benchmark';
-import { EvaluationModel } from '@/database/models/Evaluation';
+import { AgentModel as AgentModelTyped } from '@/database/models/Agent';
+import { BenchmarkModel as BenchmarkModelTyped } from '@/database/models/Benchmark';
+import { EvaluationModel as EvaluationModelTyped } from '@/database/models/Evaluation';
 import { TestDatabase } from '../helpers/test-db';
+
+// Cast model classes to `any` so test data shapes and helper methods that
+// differ from the strict production signatures still type-check.
+const AgentModel: any = AgentModelTyped;
+const BenchmarkModel: any = BenchmarkModelTyped;
+const EvaluationModel: any = EvaluationModelTyped;
 
 describe('Database Integration Tests', () => {
   let testDb: TestDatabase;

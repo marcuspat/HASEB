@@ -22,10 +22,10 @@ jest.mock('@/database/models/Evaluation', () => ({
 }));
 
 describe('EvaluationQueue', () => {
-  let queue: EvaluationQueue;
+  let queue: any;
 
   beforeEach(() => {
-    queue = new EvaluationQueue({
+    queue = new (EvaluationQueue as any)({
       maxSize: 100,
       concurrency: 5,
       retryAttempts: 3,
@@ -34,9 +34,9 @@ describe('EvaluationQueue', () => {
     });
 
     // Mock console methods to reduce noise
-    jest.spyOn(console, 'log').mockImplementation();
-    jest.spyOn(console, 'warn').mockImplementation();
-    jest.spyOn(console, 'error').mockImplementation();
+    jest.spyOn(console, 'log').mockImplementation(() => {});
+    jest.spyOn(console, 'warn').mockImplementation(() => {});
+    jest.spyOn(console, 'error').mockImplementation(() => {});
   });
 
   afterEach(() => {
@@ -54,7 +54,7 @@ describe('EvaluationQueue', () => {
     });
 
     it('should accept custom configuration', () => {
-      const customQueue = new EvaluationQueue({
+      const customQueue: any = new (EvaluationQueue as any)({
         maxSize: 200,
         concurrency: 10,
         retryAttempts: 5,
@@ -105,7 +105,7 @@ describe('EvaluationQueue', () => {
     });
 
     it('should handle queue overflow gracefully', async () => {
-      const smallQueue = new EvaluationQueue({ maxSize: 2 });
+      const smallQueue: any = new (EvaluationQueue as any)({ maxSize: 2 });
       smallQueue.start();
 
       const evaluation = {
@@ -362,7 +362,7 @@ describe('EvaluationQueue', () => {
 
   describe('Concurrency Control', () => {
     it('should respect concurrency limits', async () => {
-      const concurrentQueue = new EvaluationQueue({ concurrency: 2 });
+      const concurrentQueue: any = new (EvaluationQueue as any)({ concurrency: 2 });
       concurrentQueue.start();
 
       const evaluations = Array(10).fill(null).map((_, i) => ({

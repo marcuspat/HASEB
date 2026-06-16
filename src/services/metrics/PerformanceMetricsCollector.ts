@@ -61,7 +61,7 @@ export class PerformanceMetricsCollector extends BaseMetricCollector {
       const evaluation = await EvaluationModel.findById(this.context.evaluationId);
       if (evaluation && evaluation.metrics) {
         // Initialize state from existing metrics
-        const perfMetrics = evaluation.metrics.performance;
+        const perfMetrics = (evaluation.metrics as any).performance;
         if (perfMetrics) {
           this.state.totalTasks = perfMetrics.tasksTotal || 0;
           this.state.completedTasks = perfMetrics.tasksCompleted || 0;

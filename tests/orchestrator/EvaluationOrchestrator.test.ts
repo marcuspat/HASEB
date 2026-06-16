@@ -22,7 +22,7 @@ jest.mock('../../src/orchestrator/ExecutionEngine');
 jest.mock('../../src/orchestrator/ErrorHandler');
 
 describe('EvaluationOrchestrator', () => {
-  let orchestrator: EvaluationOrchestrator;
+  let orchestrator: any;
   let mockQueue: jest.Mocked<EvaluationQueue>;
   let mockWsManager: jest.Mocked<WebSocketManager>;
   let mockEnvManager: jest.Mocked<EnvironmentManager>;
@@ -43,15 +43,15 @@ describe('EvaluationOrchestrator', () => {
     mockErrorHandler = new ErrorHandler() as jest.Mocked<ErrorHandler>;
 
     // Mock the constructors
-    (EvaluationQueue as jest.Mock).mockImplementation(() => mockQueue);
-    (WebSocketManager as jest.Mock).mockImplementation(() => mockWsManager);
-    (EnvironmentManager as jest.Mock).mockImplementation(() => mockEnvManager);
-    (MetricsCollector as jest.Mock).mockImplementation(() => mockMetricsCollector);
-    (ExecutionEngine as jest.Mock).mockImplementation(() => mockExecutionEngine);
-    (ErrorHandler as jest.Mock).mockImplementation(() => mockErrorHandler);
+    (EvaluationQueue as unknown as jest.Mock).mockImplementation(() => mockQueue);
+    (WebSocketManager as unknown as jest.Mock).mockImplementation(() => mockWsManager);
+    (EnvironmentManager as unknown as jest.Mock).mockImplementation(() => mockEnvManager);
+    (MetricsCollector as unknown as jest.Mock).mockImplementation(() => mockMetricsCollector);
+    (ExecutionEngine as unknown as jest.Mock).mockImplementation(() => mockExecutionEngine);
+    (ErrorHandler as unknown as jest.Mock).mockImplementation(() => mockErrorHandler);
 
     // Create orchestrator instance
-    orchestrator = new EvaluationOrchestrator({
+    orchestrator = new (EvaluationOrchestrator as any)({
       maxConcurrentEvaluations: 2,
       defaultTimeout: 30000,
       enableRealTimeUpdates: true
@@ -76,7 +76,7 @@ describe('EvaluationOrchestrator', () => {
     });
 
     it('should initialize with custom configuration', () => {
-      const customOrchestrator = new EvaluationOrchestrator({
+      const customOrchestrator = new (EvaluationOrchestrator as any)({
         maxConcurrentEvaluations: 10,
         defaultTimeout: 60000,
         enableAutoRetry: false
@@ -126,10 +126,10 @@ describe('EvaluationOrchestrator', () => {
     };
 
     beforeEach(() => {
-      (EvaluationModel.findById as jest.Mock).mockResolvedValue(mockEvaluation);
-      (AgentModel.findById as jest.Mock).mockResolvedValue(mockAgent);
-      (BenchmarkModel.findById as jest.Mock).mockResolvedValue(mockBenchmark);
-      (EvaluationModel.updateStatusWithTime as jest.Mock).mockResolvedValue(true);
+      (EvaluationModel.findById as jest.Mock<any>).mockResolvedValue(mockEvaluation);
+      (AgentModel.findById as jest.Mock<any>).mockResolvedValue(mockAgent);
+      (BenchmarkModel.findById as jest.Mock<any>).mockResolvedValue(mockBenchmark);
+      (EvaluationModel.updateStatusWithTime as jest.Mock<any>).mockResolvedValue(true);
     });
 
     it('should start an evaluation successfully', async () => {
@@ -149,7 +149,7 @@ describe('EvaluationOrchestrator', () => {
     });
 
     it('should fail if evaluation not found', async () => {
-      (EvaluationModel.findById as jest.Mock).mockResolvedValue(null);
+      (EvaluationModel.findById as jest.Mock<any>).mockResolvedValue(null);
 
       const result = await orchestrator.startEvaluation('invalid-id');
 
@@ -157,7 +157,7 @@ describe('EvaluationOrchestrator', () => {
     });
 
     it('should fail if agent not found', async () => {
-      (AgentModel.findById as jest.Mock).mockResolvedValue(null);
+      (AgentModel.findById as jest.Mock<any>).mockResolvedValue(null);
 
       const result = await orchestrator.startEvaluation('eval-123');
 
@@ -165,7 +165,7 @@ describe('EvaluationOrchestrator', () => {
     });
 
     it('should fail if benchmark not found', async () => {
-      (BenchmarkModel.findById as jest.Mock).mockResolvedValue(null);
+      (BenchmarkModel.findById as jest.Mock<any>).mockResolvedValue(null);
 
       const result = await orchestrator.startEvaluation('eval-123');
 
@@ -198,13 +198,13 @@ describe('EvaluationOrchestrator', () => {
       // Add to active evaluations
       orchestrator['activeEvaluations'].set(evaluationId, mockState);
 
-      (EvaluationModel.updateStatusWithTime as jest.Mock).mockResolvedValue(true);
+      (EvaluationModel.updateStatusWithTime as jest.Mock<any>).mockResolvedValue(true);
 
       const result = await orchestrator.stopEvaluation(evaluationId);
 
       expect(result).toBe(true);
       expect(mockState.status).toBe('cancelled');
-      expect(mockState.endTime).toBeDefined();
+      expect((mockState as any).endTime).toBeDefined();
       expect(EvaluationModel.updateStatusWithTime).toHaveBeenCalledWith(
         evaluationId,
         'cancelled',
@@ -246,7 +246,7 @@ describe('EvaluationOrchestrator', () => {
       orchestrator['activeEvaluations'].set(evaluationId, mockState);
 
       // Mock database evaluation
-      (EvaluationModel.findById as jest.Mock).mockResolvedValue({
+      (EvaluationModel.findById as jest.Mock<any>).mockResolvedValue({
         id: evaluationId,
         agentId: 'agent-123',
         benchmarkId: 'benchmark-123',
@@ -257,18 +257,18 @@ describe('EvaluationOrchestrator', () => {
         endTime: new Date()
       });
 
-      (EvaluationModel.updateStatus as jest.Mock).mockResolvedValue(true);
+      (EvaluationModel.updateStatus as jest.Mock<any>).mockResolvedValue(true);
 
       const result = await orchestrator.retryEvaluation(evaluationId);
 
       expect(result).toBe(true);
-      expect(mockState.retryCount).toBe(1);
+      expect((mockState as any).retryCount).toBe(1);
     });
 
     it('should retry from database if not in active evaluations', async () => {
       const evaluationId = 'eval-123';
 
-      (EvaluationModel.findById as jest.Mock).mockResolvedValue({
+      (EvaluationModel.findById as jest.Mock<any>).mockResolvedValue({
         id: evaluationId,
         agentId: 'agent-123',
         benchmarkId: 'benchmark-123',
@@ -279,7 +279,7 @@ describe('EvaluationOrchestrator', () => {
         endTime: new Date()
       });
 
-      (EvaluationModel.updateStatus as jest.Mock).mockResolvedValue(true);
+      (EvaluationModel.updateStatus as jest.Mock<any>).mockResolvedValue(true);
 
       const result = await orchestrator.retryEvaluation(evaluationId);
 
@@ -291,7 +291,7 @@ describe('EvaluationOrchestrator', () => {
     it('should return false if evaluation cannot be retried', async () => {
       const evaluationId = 'eval-123';
 
-      (EvaluationModel.findById as jest.Mock).mockResolvedValue({
+      (EvaluationModel.findById as jest.Mock<any>).mockResolvedValue({
         id: evaluationId,
         agentId: 'agent-123',
         benchmarkId: 'benchmark-123',
@@ -338,7 +338,7 @@ describe('EvaluationOrchestrator', () => {
     it('should return status from database for inactive evaluation', async () => {
       const evaluationId = 'eval-123';
 
-      (EvaluationModel.findById as jest.Mock).mockResolvedValue({
+      (EvaluationModel.findById as jest.Mock<any>).mockResolvedValue({
         id: evaluationId,
         agentId: 'agent-123',
         benchmarkId: 'benchmark-123',
@@ -358,7 +358,7 @@ describe('EvaluationOrchestrator', () => {
     });
 
     it('should return null if evaluation not found', async () => {
-      (EvaluationModel.findById as jest.Mock).mockResolvedValue(null);
+      (EvaluationModel.findById as jest.Mock<any>).mockResolvedValue(null);
 
       const result = await orchestrator.getEvaluationStatus('invalid-id');
 
@@ -371,7 +371,7 @@ describe('EvaluationOrchestrator', () => {
       const agentId = 'agent-123';
       const benchmarkId = 'benchmark-123';
 
-      (EvaluationModel.getAverageMetrics as jest.Mock).mockResolvedValue({
+      (EvaluationModel.getAverageMetrics as jest.Mock<any>).mockResolvedValue({
         avg_execution_time: 1800000 // 30 minutes
       });
 
@@ -385,8 +385,8 @@ describe('EvaluationOrchestrator', () => {
       const agentId = 'agent-123';
       const benchmarkId = 'benchmark-123';
 
-      (EvaluationModel.getAverageMetrics as jest.Mock).mockResolvedValue(null);
-      (BenchmarkModel.findById as jest.Mock).mockResolvedValue({
+      (EvaluationModel.getAverageMetrics as jest.Mock<any>).mockResolvedValue(null);
+      (BenchmarkModel.findById as jest.Mock<any>).mockResolvedValue({
         id: benchmarkId,
         type: 'swe-bench',
         name: 'Test Benchmark'
@@ -401,8 +401,8 @@ describe('EvaluationOrchestrator', () => {
       const agentId = 'agent-123';
       const benchmarkId = 'benchmark-123';
 
-      (EvaluationModel.getAverageMetrics as jest.Mock).mockResolvedValue(null);
-      (BenchmarkModel.findById as jest.Mock).mockResolvedValue(null);
+      (EvaluationModel.getAverageMetrics as jest.Mock<any>).mockResolvedValue(null);
+      (BenchmarkModel.findById as jest.Mock<any>).mockResolvedValue(null);
 
       const result = await orchestrator.estimateDuration(agentId, benchmarkId);
 
@@ -416,7 +416,7 @@ describe('EvaluationOrchestrator', () => {
       orchestrator['activeEvaluations'].set('eval-1', { status: 'execute' });
       orchestrator['activeEvaluations'].set('eval-2', { status: 'setup' });
 
-      (EvaluationModel.list as jest.Mock).mockResolvedValue({
+      (EvaluationModel.list as jest.Mock<any>).mockResolvedValue({
         evaluations: [
           { status: 'completed', metrics: { taskSuccessRate: 90 } },
           { status: 'completed', metrics: { taskSuccessRate: 80 } },
@@ -425,8 +425,8 @@ describe('EvaluationOrchestrator', () => {
         total: 3
       });
 
-      (mockQueue.getLength as jest.Mock).mockResolvedValue(5);
-      (mockWsManager.getConnectionCount as jest.Mock).mockReturnValue(10);
+      (mockQueue.getLength as jest.Mock<any>).mockResolvedValue(5);
+      (mockWsManager.getConnectionCount as jest.Mock<any>).mockReturnValue(10);
 
       const result = await orchestrator.getMetrics();
 
@@ -444,7 +444,7 @@ describe('EvaluationOrchestrator', () => {
 
   describe('error handling', () => {
     it('should handle evaluation start errors gracefully', async () => {
-      (EvaluationModel.findById as jest.Mock).mockRejectedValue(new Error('Database error'));
+      (EvaluationModel.findById as jest.Mock<any>).mockRejectedValue(new Error('Database error'));
 
       const result = await orchestrator.startEvaluation('eval-123');
 
@@ -454,7 +454,7 @@ describe('EvaluationOrchestrator', () => {
     it('should handle environment setup errors', async () => {
       const evaluationId = 'eval-123';
 
-      (EvaluationModel.findById as jest.Mock).mockResolvedValue({
+      (EvaluationModel.findById as jest.Mock<any>).mockResolvedValue({
         id: evaluationId,
         agentId: 'agent-123',
         benchmarkId: 'benchmark-123',
@@ -464,7 +464,7 @@ describe('EvaluationOrchestrator', () => {
         startTime: new Date()
       });
 
-      (AgentModel.findById as jest.Mock).mockResolvedValue({
+      (AgentModel.findById as jest.Mock<any>).mockResolvedValue({
         id: 'agent-123',
         name: 'Test Agent',
         type: 'test',
@@ -474,7 +474,7 @@ describe('EvaluationOrchestrator', () => {
         createdAt: new Date()
       });
 
-      (BenchmarkModel.findById as jest.Mock).mockResolvedValue({
+      (BenchmarkModel.findById as jest.Mock<any>).mockResolvedValue({
         id: 'benchmark-123',
         name: 'Test Benchmark',
         type: 'swe-bench',
@@ -485,7 +485,7 @@ describe('EvaluationOrchestrator', () => {
         createdAt: new Date()
       });
 
-      (EvaluationModel.updateStatusWithTime as jest.Mock).mockResolvedValue(true);
+      (EvaluationModel.updateStatusWithTime as jest.Mock<any>).mockResolvedValue(true);
 
       // Mock environment manager to throw error
       mockEnvManager.createEnvironment.mockRejectedValue(new Error('Environment creation failed'));
@@ -500,7 +500,7 @@ describe('EvaluationOrchestrator', () => {
     it('should execute complete workflow for successful evaluation', async () => {
       const evaluationId = 'eval-123';
 
-      (EvaluationModel.findById as jest.Mock).mockResolvedValue({
+      (EvaluationModel.findById as jest.Mock<any>).mockResolvedValue({
         id: evaluationId,
         agentId: 'agent-123',
         benchmarkId: 'benchmark-123',
@@ -510,7 +510,7 @@ describe('EvaluationOrchestrator', () => {
         startTime: new Date()
       });
 
-      (AgentModel.findById as jest.Mock).mockResolvedValue({
+      (AgentModel.findById as jest.Mock<any>).mockResolvedValue({
         id: 'agent-123',
         name: 'Test Agent',
         type: 'test',
@@ -520,7 +520,7 @@ describe('EvaluationOrchestrator', () => {
         createdAt: new Date()
       });
 
-      (BenchmarkModel.findById as jest.Mock).mockResolvedValue({
+      (BenchmarkModel.findById as jest.Mock<any>).mockResolvedValue({
         id: 'benchmark-123',
         name: 'Test Benchmark',
         type: 'swe-bench',
@@ -531,8 +531,8 @@ describe('EvaluationOrchestrator', () => {
         createdAt: new Date()
       });
 
-      (EvaluationModel.updateStatusWithTime as jest.Mock).mockResolvedValue(true);
-      (EvaluationModel.updateMetrics as jest.Mock).mockResolvedValue(true);
+      (EvaluationModel.updateStatusWithTime as jest.Mock<any>).mockResolvedValue(true);
+      (EvaluationModel.updateMetrics as jest.Mock<any>).mockResolvedValue(true);
 
       // Mock successful environment creation
       mockEnvManager.createEnvironment.mockResolvedValue({
