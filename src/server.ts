@@ -7,6 +7,8 @@ import rateLimit from 'express-rate-limit';
 import swaggerJsdoc from 'swagger-jsdoc';
 import swaggerUi from 'swagger-ui-express';
 import { createServer as createHttpServer } from 'http';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import dotenv from 'dotenv';
 
 import { logger } from './utils/logger';
@@ -26,6 +28,11 @@ import leaderboardRoutes from './api/leaderboard';
 // Seeds
 import { seedLeaderboard } from './database/seeds/leaderboard-seed';
 
+// Evaluation pipeline (Phase 2-3)
+import { EvaluationCoordinator } from './application/evaluation/EvaluationCoordinator';
+import { EvaluationEventEmitter } from './infrastructure/events/EvaluationEventEmitter';
+import { setCoordinator } from './application/evaluation/coordinator';
+
 // Import orchestrator components
 import { EvaluationOrchestrator } from './orchestrator/EvaluationOrchestrator';
 import { EvaluationQueue } from './orchestrator/EvaluationQueue';
@@ -44,6 +51,14 @@ const PORT = process.env.PORT || 3000;
 // Initialize orchestrator components
 export const orchestrator = new EvaluationOrchestrator();
 export const wsManager = new WebSocketManager();
+
+// Wire the evaluation pipeline: queue -> coordinator -> harness -> scoring,
+// with live progress over websockets. The coordinator also subscribes to the
+// queue's 'process' event as the documented integration seam (ADR-009/011).
+export const evaluationQueue = new EvaluationQueue();
+const evaluationEvents = new EvaluationEventEmitter(wsManager);
+export const evaluationCoordinator = new EvaluationCoordinator(evaluationQueue, evaluationEvents);
+setCoordinator(evaluationCoordinator);
 
 // Rate limiting
 const limiter = rateLimit({
@@ -155,8 +170,13 @@ app.use('/api/metrics', metricsRoutes);
 app.use('/api/orchestrator', orchestratorRoutes);
 app.use('/api/leaderboard', leaderboardRoutes);
 
-// Root endpoint
-app.get('/', (req, res) => {
+// Serve the compiled React frontend (Phase 4) when it has been built.
+const moduleDir = path.dirname(fileURLToPath(import.meta.url));
+const clientDist = path.join(moduleDir, '../dist/client');
+app.use(express.static(clientDist));
+
+// API service info
+app.get('/api', (req, res) => {
   res.json({
     name: 'HASEB API',
     version: '1.0.0',
@@ -165,7 +185,20 @@ app.get('/', (req, res) => {
       health: '/health',
       documentation: '/api-docs',
       api: '/api',
+      leaderboard: '/api/leaderboard',
     },
+  });
+});
+
+// SPA fallback: non-API GET requests serve the React app's index.html.
+app.get('*', (req, res, next) => {
+  if (req.path.startsWith('/api') || req.path.startsWith('/socket.io')) {
+    return next();
+  }
+  res.sendFile(path.join(clientDist, 'index.html'), (err) => {
+    if (err) {
+      next();
+    }
   });
 });
 

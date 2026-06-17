@@ -1,6 +1,7 @@
 import { randomUUID } from 'crypto';
 import { db } from '../connection';
 import { logger } from '../../utils/logger';
+import { SWE_BENCH_LITE_BENCHMARK_ID, SWE_BENCH_LITE_BENCHMARK_NAME } from './constants';
 
 /**
  * Seeds known public SWE-bench Lite resolve rates as public leaderboard entries
@@ -10,9 +11,7 @@ import { logger } from '../../utils/logger';
  * UNIQUE(agent_id, benchmark_id), then ranks/percentiles are recomputed.
  */
 
-/** Deterministic id for the seeded SWE-bench Lite benchmark (valid UUID for PG). */
-export const SWE_BENCH_LITE_BENCHMARK_ID = '00000000-0000-4000-8000-000000000001';
-export const SWE_BENCH_LITE_BENCHMARK_NAME = 'SWE-bench Lite';
+export { SWE_BENCH_LITE_BENCHMARK_ID, SWE_BENCH_LITE_BENCHMARK_NAME } from './constants';
 
 /**
  * Published SWE-bench Lite resolve rates (300 tasks).

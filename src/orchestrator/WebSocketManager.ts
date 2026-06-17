@@ -97,6 +97,26 @@ export class WebSocketManager {
     socket.on('disconnect', () => this.handleDisconnect(socket));
     socket.on('ping', () => this.handlePing(socket));
     socket.on('error', (error) => this.handleError(socket, error));
+
+    // Room-based subscription for live evaluation progress (ADR-011).
+    socket.on('join', (evaluationId: string) => {
+      if (typeof evaluationId === 'string' && evaluationId.length > 0) {
+        socket.join(evaluationId);
+        socket.emit('joined', { evaluationId, timestamp: new Date() });
+      }
+    });
+    socket.on('leave', (evaluationId: string) => {
+      if (typeof evaluationId === 'string') {
+        socket.leave(evaluationId);
+      }
+    });
+  }
+
+  /** Emit a named domain event to everyone in an evaluation's room. */
+  public emitToEvaluation(evaluationId: string, event: string, data: unknown): void {
+    if (this.io) {
+      this.io.to(evaluationId).emit(event, data);
+    }
   }
 
   private handleSubscribe(socket: Socket, data: { evaluationId: string; userId?: string }): void {
