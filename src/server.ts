@@ -21,6 +21,10 @@ import evaluationsRoutes from './api/evaluations';
 import authRoutes from './api/auth';
 import metricsRoutes from './api/metrics';
 import orchestratorRoutes from './api/orchestrator';
+import leaderboardRoutes from './api/leaderboard';
+
+// Seeds
+import { seedLeaderboard } from './database/seeds/leaderboard-seed';
 
 // Import orchestrator components
 import { EvaluationOrchestrator } from './orchestrator/EvaluationOrchestrator';
@@ -149,6 +153,7 @@ app.use('/api/benchmarks', benchmarksRoutes);
 app.use('/api/evaluations', evaluationsRoutes);
 app.use('/api/metrics', metricsRoutes);
 app.use('/api/orchestrator', orchestratorRoutes);
+app.use('/api/leaderboard', leaderboardRoutes);
 
 // Root endpoint
 app.get('/', (req, res) => {
@@ -196,6 +201,15 @@ async function startServer() {
       await SqliteMigrationManager.migrate();
     } else {
       await MigrationManager.migrate();
+    }
+
+    // Seed the public leaderboard with known SWE-bench Lite baselines (ADR-010).
+    // Idempotent and safe on every boot. The SWE-bench task seed is NOT run here
+    // (it fetches 300 rows from HuggingFace) — run `npm run seed:swebench`.
+    try {
+      await seedLeaderboard();
+    } catch (seedError) {
+      logger.error('Leaderboard seed failed (continuing startup):', seedError);
     }
 
     // Create HTTP server for WebSocket support

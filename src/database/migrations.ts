@@ -166,6 +166,122 @@ export const migrations = [
       DROP TABLE IF EXISTS migrations;
     `,
   },
+  {
+    version: '008',
+    name: 'create_benchmark_tasks',
+    up: `
+      CREATE TABLE IF NOT EXISTS benchmark_tasks (
+        id TEXT PRIMARY KEY,
+        benchmark_id UUID NOT NULL REFERENCES benchmarks(id) ON DELETE CASCADE,
+        instance_id TEXT NOT NULL UNIQUE,
+        repo TEXT NOT NULL,
+        base_commit TEXT NOT NULL,
+        problem_statement TEXT NOT NULL,
+        hints_text TEXT,
+        fail_to_pass TEXT NOT NULL,
+        pass_to_fail TEXT NOT NULL,
+        difficulty TEXT DEFAULT 'medium',
+        version TEXT,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+      );
+
+      CREATE INDEX idx_benchmark_tasks_benchmark_id ON benchmark_tasks(benchmark_id);
+      CREATE INDEX idx_benchmark_tasks_instance_id ON benchmark_tasks(instance_id);
+      CREATE INDEX idx_benchmark_tasks_difficulty ON benchmark_tasks(difficulty);
+    `,
+    down: `
+      DROP TABLE IF EXISTS benchmark_tasks;
+    `,
+  },
+  {
+    version: '009',
+    name: 'create_execution_jobs',
+    up: `
+      CREATE TABLE IF NOT EXISTS execution_jobs (
+        id TEXT PRIMARY KEY,
+        evaluation_id UUID NOT NULL REFERENCES evaluations(id) ON DELETE CASCADE,
+        benchmark_task_id TEXT NOT NULL REFERENCES benchmark_tasks(id) ON DELETE CASCADE,
+        agent_id UUID NOT NULL REFERENCES agents(id) ON DELETE CASCADE,
+        status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'running', 'completed', 'failed', 'timeout')),
+        agent_patch TEXT,
+        result_passed INTEGER,
+        result_tests_run INTEGER,
+        result_tests_passed INTEGER,
+        result_tests_failed INTEGER,
+        result_execution_time_ms INTEGER,
+        result_stdout TEXT,
+        result_stderr TEXT,
+        result_error_message TEXT,
+        retry_count INTEGER DEFAULT 0,
+        started_at TIMESTAMP WITH TIME ZONE,
+        completed_at TIMESTAMP WITH TIME ZONE,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+      );
+
+      CREATE INDEX idx_execution_jobs_evaluation_id ON execution_jobs(evaluation_id);
+      CREATE INDEX idx_execution_jobs_benchmark_task_id ON execution_jobs(benchmark_task_id);
+      CREATE INDEX idx_execution_jobs_agent_id ON execution_jobs(agent_id);
+      CREATE INDEX idx_execution_jobs_status ON execution_jobs(status);
+    `,
+    down: `
+      DROP TABLE IF EXISTS execution_jobs;
+    `,
+  },
+  {
+    version: '010',
+    name: 'create_scores',
+    up: `
+      CREATE TABLE IF NOT EXISTS scores (
+        id TEXT PRIMARY KEY,
+        evaluation_id UUID NOT NULL REFERENCES evaluations(id) ON DELETE CASCADE,
+        agent_id UUID NOT NULL REFERENCES agents(id) ON DELETE CASCADE,
+        benchmark_id UUID NOT NULL REFERENCES benchmarks(id) ON DELETE CASCADE,
+        resolve_rate REAL NOT NULL,
+        total_tasks INTEGER NOT NULL,
+        resolved_tasks INTEGER NOT NULL DEFAULT 0,
+        failed_tasks INTEGER NOT NULL DEFAULT 0,
+        timed_out_tasks INTEGER NOT NULL DEFAULT 0,
+        avg_execution_time_ms REAL,
+        computed_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+        UNIQUE(evaluation_id)
+      );
+
+      CREATE INDEX idx_scores_agent_id ON scores(agent_id);
+      CREATE INDEX idx_scores_benchmark_id ON scores(benchmark_id);
+      CREATE INDEX idx_scores_resolve_rate ON scores(resolve_rate);
+    `,
+    down: `
+      DROP TABLE IF EXISTS scores;
+    `,
+  },
+  {
+    version: '011',
+    name: 'create_leaderboard',
+    up: `
+      CREATE TABLE IF NOT EXISTS leaderboard (
+        id TEXT PRIMARY KEY,
+        agent_id TEXT NOT NULL,
+        agent_name TEXT NOT NULL,
+        model_provider TEXT,
+        benchmark_id UUID NOT NULL REFERENCES benchmarks(id) ON DELETE CASCADE,
+        benchmark_name TEXT NOT NULL,
+        resolve_rate REAL NOT NULL,
+        rank INTEGER,
+        percentile REAL,
+        total_tasks INTEGER NOT NULL,
+        is_public INTEGER DEFAULT 1,
+        submitted_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+        UNIQUE(agent_id, benchmark_id)
+      );
+
+      CREATE INDEX idx_leaderboard_benchmark_id ON leaderboard(benchmark_id);
+      CREATE INDEX idx_leaderboard_resolve_rate ON leaderboard(resolve_rate);
+      CREATE INDEX idx_leaderboard_is_public ON leaderboard(is_public);
+    `,
+    down: `
+      DROP TABLE IF EXISTS leaderboard;
+    `,
+  },
 ];
 
 export class MigrationManager {
