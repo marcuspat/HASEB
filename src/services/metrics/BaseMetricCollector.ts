@@ -272,7 +272,7 @@ export abstract class BaseMetricCollector extends EventEmitter {
 
     // Check for basic anomalies (can be extended)
     const currentTime = metrics.timestamp.getTime();
-    const recentTimes = historicalMetrics.map(m => m.timestamp.getTime());
+    const recentTimes = historicalMetrics.map(m => m.timestamp?.getTime() ?? 0);
 
     // Simple time-based outlier detection
     const avgInterval = recentTimes.reduce((sum, time, i) => {
@@ -293,7 +293,7 @@ export abstract class BaseMetricCollector extends EventEmitter {
     operation: () => Promise<T>,
     operationName: string
   ): Promise<T> {
-    let lastError: Error;
+    let lastError: Error | undefined;
 
     for (let attempt = 1; attempt <= this.config.retryAttempts; attempt++) {
       try {
@@ -308,7 +308,7 @@ export abstract class BaseMetricCollector extends EventEmitter {
       }
     }
 
-    throw new Error(`${operationName} failed after ${this.config.retryAttempts} attempts: ${lastError.message}`);
+    throw new Error(`${operationName} failed after ${this.config.retryAttempts} attempts: ${lastError?.message}`);
   }
 
   /**

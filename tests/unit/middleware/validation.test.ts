@@ -26,7 +26,7 @@ describe('Validation Middleware', () => {
         },
       };
 
-      const middleware = validateRequest(schema);
+      const middleware = validateRequest(schema as any);
       const mockReq = mockRequest({
         body: {
           name: 'John Doe',
@@ -46,7 +46,7 @@ describe('Validation Middleware', () => {
         },
       };
 
-      const middleware = validateRequest(schema);
+      const middleware = validateRequest(schema as any);
       const mockReq = mockRequest({
         body: {
           // Missing required fields
@@ -65,7 +65,7 @@ describe('Validation Middleware', () => {
         },
       };
 
-      const middleware = validateRequest(schema);
+      const middleware = validateRequest(schema as any);
       const mockReq = mockRequest({
         query: {
           page: 1,
@@ -84,7 +84,7 @@ describe('Validation Middleware', () => {
         },
       };
 
-      const middleware = validateRequest(schema);
+      const middleware = validateRequest(schema as any);
       const mockReq = mockRequest({
         params: {
           id: '123',
@@ -102,7 +102,7 @@ describe('Validation Middleware', () => {
         },
       };
 
-      const middleware = validateRequest(schema);
+      const middleware = validateRequest(schema as any);
       const mockReq = mockRequest({
         body: {
           email: 'invalid-email',
@@ -120,7 +120,7 @@ describe('Validation Middleware', () => {
         },
       };
 
-      const middleware = validateRequest(schema);
+      const middleware = validateRequest(schema as any);
       const mockReq = mockRequest({
         params: {
           id: 'invalid-uuid',
@@ -138,7 +138,7 @@ describe('Validation Middleware', () => {
         },
       };
 
-      const middleware = validateRequest(schema);
+      const middleware = validateRequest(schema as any);
       const mockReq = mockRequest({
         body: {
           name: 'ab', // Too short
@@ -156,7 +156,7 @@ describe('Validation Middleware', () => {
         },
       };
 
-      const middleware = validateRequest(schema);
+      const middleware = validateRequest(schema as any);
       const mockReq = mockRequest({
         body: {
           age: 15, // Too young
@@ -174,7 +174,7 @@ describe('Validation Middleware', () => {
         },
       };
 
-      const middleware = validateRequest(schema);
+      const middleware = validateRequest(schema as any);
       const mockReq = mockRequest({
         body: {
           status: 'pending', // Invalid enum value
@@ -192,7 +192,7 @@ describe('Validation Middleware', () => {
         },
       };
 
-      const middleware = validateRequest(schema);
+      const middleware = validateRequest(schema as any);
       const mockReq = mockRequest({
         body: {
           tags: ['tag1', 'tag2', 'tag3', 'tag4'], // Too many tags
@@ -216,7 +216,7 @@ describe('Validation Middleware', () => {
       extractPagination(mockReq as any, mockRes, nextFn);
 
       expect(nextFn).toHaveBeenCalled();
-      expect(mockReq.pagination).toEqual({
+      expect((mockReq as any).pagination).toEqual({
         page: 2,
         limit: 10,
         sortBy: undefined,
@@ -232,7 +232,7 @@ describe('Validation Middleware', () => {
       extractPagination(mockReq as any, mockRes, nextFn);
 
       expect(nextFn).toHaveBeenCalled();
-      expect(mockReq.pagination).toEqual({
+      expect((mockReq as any).pagination).toEqual({
         page: 1,
         limit: 20,
         sortBy: undefined,
@@ -250,7 +250,7 @@ describe('Validation Middleware', () => {
       extractPagination(mockReq as any, mockRes, nextFn);
 
       expect(nextFn).toHaveBeenCalled();
-      expect(mockReq.pagination.page).toBe(1); // Should use default
+      expect((mockReq as any).pagination.page).toBe(1); // Should use default
     });
 
     it('should validate limit parameter', () => {
@@ -263,7 +263,7 @@ describe('Validation Middleware', () => {
       extractPagination(mockReq as any, mockRes, nextFn);
 
       expect(nextFn).toHaveBeenCalled();
-      expect(mockReq.pagination.limit).toBe(100); // Should be clamped to max value
+      expect((mockReq as any).pagination.limit).toBe(100); // Should be clamped to max value
     });
 
     it('should handle string to number conversion', () => {
@@ -277,10 +277,10 @@ describe('Validation Middleware', () => {
       extractPagination(mockReq as any, mockRes, nextFn);
 
       expect(nextFn).toHaveBeenCalled();
-      expect(mockReq.pagination.page).toBe(5);
-      expect(mockReq.pagination.limit).toBe(15);
-      expect(typeof mockReq.pagination.page).toBe('number');
-      expect(typeof mockReq.pagination.limit).toBe('number');
+      expect((mockReq as any).pagination.page).toBe(5);
+      expect((mockReq as any).pagination.limit).toBe(15);
+      expect(typeof (mockReq as any).pagination.page).toBe('number');
+      expect(typeof (mockReq as any).pagination.limit).toBe('number');
     });
 
     it('should handle sort order validation', () => {
@@ -293,7 +293,7 @@ describe('Validation Middleware', () => {
       extractPagination(mockReq as any, mockRes, nextFn);
 
       expect(nextFn).toHaveBeenCalled();
-      expect(mockReq.pagination.sortOrder).toBe('asc');
+      expect((mockReq as any).pagination.sortOrder).toBe('asc');
     });
 
     it('should default sort order to desc for invalid values', () => {
@@ -306,7 +306,7 @@ describe('Validation Middleware', () => {
       extractPagination(mockReq as any, mockRes, nextFn);
 
       expect(nextFn).toHaveBeenCalled();
-      expect(mockReq.pagination.sortOrder).toBe('desc');
+      expect((mockReq as any).pagination.sortOrder).toBe('desc');
     });
   });
 

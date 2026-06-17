@@ -58,15 +58,15 @@ jest.mock('@langchain/langgraph', () => ({
 }));
 
 describe('EvaluationOrchestrator', () => {
-  let orchestrator: EvaluationOrchestrator;
+  let orchestrator: any;
 
   beforeEach(() => {
     orchestrator = new EvaluationOrchestrator();
 
     // Mock console methods to reduce noise
-    jest.spyOn(console, 'log').mockImplementation();
-    jest.spyOn(console, 'warn').mockImplementation();
-    jest.spyOn(console, 'error').mockImplementation();
+    jest.spyOn(console, 'log').mockImplementation(() => {});
+    jest.spyOn(console, 'warn').mockImplementation(() => {});
+    jest.spyOn(console, 'error').mockImplementation(() => {});
   });
 
   afterEach(() => {

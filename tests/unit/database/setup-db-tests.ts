@@ -1,8 +1,8 @@
-const { TextEncoder, TextDecoder } = require('util');
+const util = require('util');
 
 // Make TextEncoder/TextDecoder available globally for pg library
-global.TextEncoder = TextEncoder;
-global.TextDecoder = TextDecoder;
+(global as any).TextEncoder = util.TextEncoder;
+(global as any).TextDecoder = util.TextDecoder;
 
 // Setup global mock for database connection
 const mockQuery = jest.fn();

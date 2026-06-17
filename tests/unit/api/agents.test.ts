@@ -1,6 +1,6 @@
 import request from 'supertest';
 import express from 'express';
-import { agentsRoutes } from '@/api/agents';
+import agentsRoutes from '@/api/agents';
 import { errorHandler } from '@/middleware/errorHandler';
 import { TestDatabase } from '../../helpers/test-db';
 import { mockRequest, mockResponse } from '../../helpers/mocks';
@@ -24,7 +24,7 @@ jest.mock('../../../src/middleware/requestLogger', () => ({
 }));
 
 jest.mock('../../../src/middleware/validation', () => ({
-  validateRequest: jest.fn((schema) => (req, res, next) => next()),
+  validateRequest: jest.fn((schema) => (req: any, res: any, next: any) => next()),
   extractPagination: jest.fn((req, res, next) => {
     req.pagination = { page: 1, limit: 20 };
     next();

@@ -747,7 +747,7 @@ describe('Metrics Types', () => {
         },
       };
 
-      const errors = validateMetrics(validMetrics);
+      const errors = validateMetrics(validMetrics as any);
       expect(errors).toHaveLength(0);
     });
 
@@ -761,7 +761,7 @@ describe('Metrics Types', () => {
         },
       };
 
-      const errors = validateMetrics(invalidMetrics);
+      const errors = validateMetrics(invalidMetrics as any);
       expect(errors).toHaveLength(1);
       expect(errors[0].field).toBe('performance.taskSuccessRate');
       expect(errors[0].severity).toBe('error');
@@ -777,7 +777,7 @@ describe('Metrics Types', () => {
         },
       };
 
-      const errors = validateMetrics(invalidMetrics);
+      const errors = validateMetrics(invalidMetrics as any);
       expect(errors).toHaveLength(1);
       expect(errors[0].field).toBe('efficiency.executionTime');
       expect(errors[0].severity).toBe('error');
@@ -793,7 +793,7 @@ describe('Metrics Types', () => {
         },
       };
 
-      const errors = validateMetrics(invalidMetrics);
+      const errors = validateMetrics(invalidMetrics as any);
       expect(errors).toHaveLength(1);
       expect(errors[0].field).toBe('cost.estimatedCost');
       expect(errors[0].severity).toBe('error');
@@ -821,7 +821,7 @@ describe('Metrics Types', () => {
         },
       };
 
-      const errors = validateMetrics(invalidMetrics);
+      const errors = validateMetrics(invalidMetrics as any);
       expect(errors).toHaveLength(3);
       expect(errors.map(e => e.field)).toContain('performance.taskSuccessRate');
       expect(errors.map(e => e.field)).toContain('efficiency.executionTime');

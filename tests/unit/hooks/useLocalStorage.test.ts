@@ -128,7 +128,7 @@ describe('useLocalStorage', () => {
         throw new Error('Storage read error');
       });
 
-      const spy = jest.spyOn(console, 'warn').mockImplementation();
+      const spy = jest.spyOn(console, 'warn').mockImplementation(() => {});
 
       const { result } = renderHook(() => useLocalStorage('test-key', 'default-value'));
 
@@ -170,7 +170,7 @@ describe('useLocalStorage', () => {
       const { result } = renderHook(() => useLocalStorage('user-data', null));
 
       act(() => {
-        result.current[1](complexObject);
+        (result.current[1] as any)(complexObject);
       });
 
       expect(result.current[0]).toEqual(complexObject);
@@ -182,7 +182,7 @@ describe('useLocalStorage', () => {
       const { result } = renderHook(() => useLocalStorage('numbers', []));
 
       act(() => {
-        result.current[1](array);
+        (result.current[1] as any)(array);
       });
 
       expect(result.current[0]).toEqual(array);
@@ -194,7 +194,7 @@ describe('useLocalStorage', () => {
         throw new Error('Storage write error');
       });
 
-      const spy = jest.spyOn(console, 'warn').mockImplementation();
+      const spy = jest.spyOn(console, 'warn').mockImplementation(() => {});
       const { result } = renderHook(() => useLocalStorage('test-key', 'initial'));
 
       act(() => {
@@ -268,7 +268,7 @@ describe('useLocalStorage', () => {
     });
 
     it('should handle storage event JSON parsing errors', () => {
-      const spy = jest.spyOn(console, 'error').mockImplementation();
+      const spy = jest.spyOn(console, 'error').mockImplementation(() => {});
       const { result } = renderHook(() => useLocalStorage('test-key', 'initial'));
 
       const storageEvent = new StorageEvent('storage', {
@@ -345,7 +345,7 @@ describe('useLocalStorage', () => {
       expect(result.current[0]).toBe(undefined);
 
       act(() => {
-        result.current[1]('defined-value');
+        (result.current[1] as any)('defined-value');
       });
 
       expect(result.current[0]).toBe('defined-value');

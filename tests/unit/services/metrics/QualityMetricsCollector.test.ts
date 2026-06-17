@@ -14,8 +14,8 @@ jest.mock('@/utils/logger', () => ({
 
 jest.mock('@/database/models/Evaluation', () => ({
   EvaluationModel: {
-    findById: jest.fn().mockResolvedValue(null),
-    updateMetrics: jest.fn().mockResolvedValue(true),
+    findById: jest.fn<(...args: any[]) => any>().mockResolvedValue(null),
+    updateMetrics: jest.fn<(...args: any[]) => any>().mockResolvedValue(true),
   },
 }));
 
@@ -49,9 +49,9 @@ describe('QualityMetricsCollector', () => {
     });
 
     // Mock console methods to reduce noise in tests
-    jest.spyOn(console, 'debug').mockImplementation();
-    jest.spyOn(console, 'warn').mockImplementation();
-    jest.spyOn(console, 'error').mockImplementation();
+    jest.spyOn(console, 'debug').mockImplementation(() => {});
+    jest.spyOn(console, 'warn').mockImplementation(() => {});
+    jest.spyOn(console, 'error').mockImplementation(() => {});
   });
 
   afterEach(() => {
@@ -90,29 +90,29 @@ describe('QualityMetricsCollector', () => {
 
     it('should record tool usage without throwing', () => {
       expect(() => {
-        collector.recordToolUsage('api_client', 150, true);
+        (collector as any).recordToolUsage('api_client', 150, true);
       }).not.toThrow();
     });
 
     it('should record tool failures without throwing', () => {
       expect(() => {
-        collector.recordToolUsage('api_client', 100, false, 'Connection timeout');
+        (collector as any).recordToolUsage('api_client', 100, false, 'Connection timeout');
       }).not.toThrow();
     });
 
     it('should track multiple tool uses', () => {
       expect(() => {
-        collector.recordToolUsage('api_client', 100, true);
-        collector.recordToolUsage('api_client', 200, false, 'Rate limit exceeded');
-        collector.recordToolUsage('api_client', 150, true);
+        (collector as any).recordToolUsage('api_client', 100, true);
+        (collector as any).recordToolUsage('api_client', 200, false, 'Rate limit exceeded');
+        (collector as any).recordToolUsage('api_client', 150, true);
       }).not.toThrow();
     });
 
     it('should track different tools', () => {
       expect(() => {
-        collector.recordToolUsage('api_client', 100, true);
-        collector.recordToolUsage('file_system', 50, true);
-        collector.recordToolUsage('terminal', 200, false, 'Command not found');
+        (collector as any).recordToolUsage('api_client', 100, true);
+        (collector as any).recordToolUsage('file_system', 50, true);
+        (collector as any).recordToolUsage('terminal', 200, false, 'Command not found');
       }).not.toThrow();
     });
 
@@ -131,33 +131,33 @@ describe('QualityMetricsCollector', () => {
 
     it('should record correct parameters without throwing', () => {
       expect(() => {
-        collector.recordParameterValidation('api_client', 'endpoint', true);
+        (collector as any).recordParameterValidation('api_client', 'endpoint', true);
       }).not.toThrow();
     });
 
     it('should record incorrect parameters without throwing', () => {
       expect(() => {
-        collector.recordParameterValidation('api_client', 'endpoint', false, 'Invalid URL format');
+        (collector as any).recordParameterValidation('api_client', 'endpoint', false, 'Invalid URL format');
       }).not.toThrow();
     });
 
     it('should record missing parameters without throwing', () => {
       expect(() => {
-        collector.recordParameterValidation('api_client', 'api_key', false, 'Missing required parameter');
+        (collector as any).recordParameterValidation('api_client', 'api_key', false, 'Missing required parameter');
       }).not.toThrow();
     });
 
     it('should record invalid parameters without throwing', () => {
       expect(() => {
-        collector.recordParameterValidation('terminal', 'command', false, 'Invalid command syntax');
+        (collector as any).recordParameterValidation('terminal', 'command', false, 'Invalid command syntax');
       }).not.toThrow();
     });
 
     it('should track mixed parameter validation results', () => {
       expect(() => {
-        collector.recordParameterValidation('api_client', 'endpoint', true);
-        collector.recordParameterValidation('api_client', 'timeout', false, 'Invalid timeout value');
-        collector.recordParameterValidation('file_system', 'path', true);
+        (collector as any).recordParameterValidation('api_client', 'endpoint', true);
+        (collector as any).recordParameterValidation('api_client', 'timeout', false, 'Invalid timeout value');
+        (collector as any).recordParameterValidation('file_system', 'path', true);
       }).not.toThrow();
     });
 
@@ -176,33 +176,33 @@ describe('QualityMetricsCollector', () => {
 
     it('should record optimal decisions without throwing', () => {
       expect(() => {
-        collector.recordDecision('tool_selection', 'optimal', 'Chose correct tool for task');
+        (collector as any).recordDecision('tool_selection', 'optimal', 'Chose correct tool for task');
       }).not.toThrow();
     });
 
     it('should record suboptimal decisions without throwing', () => {
       expect(() => {
-        collector.recordDecision('tool_selection', 'suboptimal', 'Could have used more efficient tool');
+        (collector as any).recordDecision('tool_selection', 'suboptimal', 'Could have used more efficient tool');
       }).not.toThrow();
     });
 
     it('should record incorrect decisions without throwing', () => {
       expect(() => {
-        collector.recordDecision('tool_selection', 'incorrect', 'Wrong tool choice for task');
+        (collector as any).recordDecision('tool_selection', 'incorrect', 'Wrong tool choice for task');
       }).not.toThrow();
     });
 
     it('should track mixed decision quality', () => {
       expect(() => {
-        collector.recordDecision('tool_selection', 'optimal', 'Correct tool choice');
-        collector.recordDecision('parameter_setting', 'suboptimal', 'Could be optimized');
-        collector.recordDecision('execution_order', 'incorrect', 'Wrong sequence');
+        (collector as any).recordDecision('tool_selection', 'optimal', 'Correct tool choice');
+        (collector as any).recordDecision('parameter_setting', 'suboptimal', 'Could be optimized');
+        (collector as any).recordDecision('execution_order', 'incorrect', 'Wrong sequence');
       }).not.toThrow();
     });
 
     it('should handle decision with missing quality', () => {
       expect(() => {
-        collector.recordDecision('unknown_decision', 'optimal', 'Quality unclear');
+        (collector as any).recordDecision('unknown_decision', 'optimal', 'Quality unclear');
       }).not.toThrow();
     });
   });
@@ -214,30 +214,30 @@ describe('QualityMetricsCollector', () => {
 
     it('should record output quality scores without throwing', () => {
       expect(() => {
-        collector.recordOutputQuality('task_1', 0.95, 0.9, 0.85, 0.92, 'High quality output');
+        (collector as any).recordOutputQuality('task_1', 0.95, 0.9, 0.85, 0.92, 'High quality output');
       }).not.toThrow();
     });
 
     it('should calculate overall output quality', () => {
       expect(() => {
-        collector.recordOutputQuality('task_1', 0.8, 0.85, 0.9, 0.88);
-        collector.recordOutputQuality('task_2', 0.7, 0.75, 0.8, 0.77);
+        (collector as any).recordOutputQuality('task_1', 0.8, 0.85, 0.9, 0.88);
+        (collector as any).recordOutputQuality('task_2', 0.7, 0.75, 0.8, 0.77);
       }).not.toThrow();
     });
 
     it('should handle partial output scores', () => {
       expect(() => {
-        collector.recordOutputQuality('task_1', 0.9); // Only overall score
-        collector.recordOutputQuality('task_2', undefined, 0.8); // Only clarity score
+        (collector as any).recordOutputQuality('task_1', 0.9); // Only overall score
+        (collector as any).recordOutputQuality('task_2', undefined, 0.8); // Only clarity score
       }).not.toThrow();
     });
 
     it('should validate score ranges', () => {
       expect(() => {
-        collector.recordOutputQuality('task_1', 1.1, 0.5, 0.8, 0.9, 'Test');
-        collector.recordOutputQuality('task_2', -0.1, 0.5, 0.8, 0.9, 'Test');
-        collector.recordOutputQuality('task_3', NaN, 0.5, 0.8, 0.9, 'Test');
-        collector.recordOutputQuality('task_4', Infinity, 0.5, 0.8, 0.9, 'Test');
+        (collector as any).recordOutputQuality('task_1', 1.1, 0.5, 0.8, 0.9, 'Test');
+        (collector as any).recordOutputQuality('task_2', -0.1, 0.5, 0.8, 0.9, 'Test');
+        (collector as any).recordOutputQuality('task_3', NaN, 0.5, 0.8, 0.9, 'Test');
+        (collector as any).recordOutputQuality('task_4', Infinity, 0.5, 0.8, 0.9, 'Test');
       }).not.toThrow();
     });
   });
@@ -249,10 +249,10 @@ describe('QualityMetricsCollector', () => {
 
     it('should collect comprehensive quality metrics', () => {
       expect(() => {
-        collector.recordToolUsage('api_client', 100, true);
-        collector.recordParameterValidation('api_client', 'endpoint', true);
-        collector.recordDecision('tool_selection', 'optimal');
-        collector.recordOutputQuality('task_1', 0.95, 0.9, 0.85, 0.92);
+        (collector as any).recordToolUsage('api_client', 100, true);
+        (collector as any).recordParameterValidation('api_client', 'endpoint', true);
+        (collector as any).recordDecision('tool_selection', 'optimal');
+        (collector as any).recordOutputQuality('task_1', 0.95, 0.9, 0.85, 0.92);
 
         const metrics = collector.getCurrentMetrics();
         expect(metrics === null || typeof metrics === 'object').toBe(true);
@@ -263,10 +263,10 @@ describe('QualityMetricsCollector', () => {
       expect(() => {
         // Multiple operations
         for (let i = 0; i < 10; i++) {
-          collector.recordToolUsage(`tool_${i}`, 100, i % 3 !== 0);
-          collector.recordParameterValidation(`tool_${i}`, 'param1', i % 2 === 0);
-          collector.recordDecision('decision', 'optimal');
-          collector.recordOutputQuality(`task_${i}`, Math.random());
+          (collector as any).recordToolUsage(`tool_${i}`, 100, i % 3 !== 0);
+          (collector as any).recordParameterValidation(`tool_${i}`, 'param1', i % 2 === 0);
+          (collector as any).recordDecision('decision', 'optimal');
+          (collector as any).recordOutputQuality(`task_${i}`, Math.random());
         }
 
         const metrics = collector.getCurrentMetrics();
@@ -283,16 +283,16 @@ describe('QualityMetricsCollector', () => {
     it('should simulate a complete evaluation scenario', () => {
       expect(() => {
         // Simulate a complex task with multiple quality aspects
-        collector.recordToolUsage('api_client', 150, true);
-        collector.recordParameterValidation('api_client', 'endpoint', true);
-        collector.recordParameterValidation('api_client', 'method', true);
-        collector.recordDecision('tool_selection', 'optimal', 'Best tool for API calls');
-        collector.recordOutputQuality('api_task', 0.95, 0.9, 0.88, 0.92, 'Successful API integration');
+        (collector as any).recordToolUsage('api_client', 150, true);
+        (collector as any).recordParameterValidation('api_client', 'endpoint', true);
+        (collector as any).recordParameterValidation('api_client', 'method', true);
+        (collector as any).recordDecision('tool_selection', 'optimal', 'Best tool for API calls');
+        (collector as any).recordOutputQuality('api_task', 0.95, 0.9, 0.88, 0.92, 'Successful API integration');
 
-        collector.recordToolUsage('file_system', 200, false, 'Permission denied');
-        collector.recordParameterValidation('file_system', 'path', false, 'Invalid path');
-        collector.recordDecision('error_handling', 'suboptimal', 'Could have handled better');
-        collector.recordOutputQuality('file_task', 0.6, 0.7, 0.5, 0.65, 'Partial success with errors');
+        (collector as any).recordToolUsage('file_system', 200, false, 'Permission denied');
+        (collector as any).recordParameterValidation('file_system', 'path', false, 'Invalid path');
+        (collector as any).recordDecision('error_handling', 'suboptimal', 'Could have handled better');
+        (collector as any).recordOutputQuality('file_task', 0.6, 0.7, 0.5, 0.65, 'Partial success with errors');
 
         const metrics = collector.getCurrentMetrics();
         expect(metrics === null || typeof metrics === 'object').toBe(true);
@@ -302,10 +302,10 @@ describe('QualityMetricsCollector', () => {
     it('should handle edge cases in quality calculations', () => {
       expect(() => {
         // Edge cases
-        collector.recordToolUsage('tool', 0, true); // Zero execution time
-        collector.recordParameterValidation('tool', 'param', true);
-        collector.recordDecision('decision', 'optimal'); // Simple decision
-        collector.recordOutputQuality('task', NaN, NaN, NaN, NaN); // NaN scores
+        (collector as any).recordToolUsage('tool', 0, true); // Zero execution time
+        (collector as any).recordParameterValidation('tool', 'param', true);
+        (collector as any).recordDecision('decision', 'optimal'); // Simple decision
+        (collector as any).recordOutputQuality('task', NaN, NaN, NaN, NaN); // NaN scores
 
         const metrics = collector.getCurrentMetrics();
         expect(metrics === null || typeof metrics === 'object').toBe(true);
@@ -320,35 +320,35 @@ describe('QualityMetricsCollector', () => {
 
     it('should handle invalid tool usage data', () => {
       expect(() => {
-        collector.recordToolUsage('', -100, true); // Empty tool name, negative time
-        collector.recordToolUsage(null as any, undefined as any, false); // Null values
+        (collector as any).recordToolUsage('', -100, true); // Empty tool name, negative time
+        (collector as any).recordToolUsage(null as any, undefined as any, false); // Null values
       }).not.toThrow();
     });
 
     it('should handle invalid parameter validation data', () => {
       expect(() => {
-        collector.recordParameterValidation('', '', false); // Empty strings
-        collector.recordParameterValidation(null as any, null as any, true); // Null values
+        (collector as any).recordParameterValidation('', '', false); // Empty strings
+        (collector as any).recordParameterValidation(null as any, null as any, true); // Null values
       }).not.toThrow();
     });
 
     it('should handle invalid decision data', () => {
       expect(() => {
-        collector.recordDecision('', 'optimal'); // Empty decision type
-        collector.recordDecision('test_decision', 'optimal'); // Normal decision
+        (collector as any).recordDecision('', 'optimal'); // Empty decision type
+        (collector as any).recordDecision('test_decision', 'optimal'); // Normal decision
       }).not.toThrow();
     });
 
     it('should handle very large execution times', () => {
       expect(() => {
-        collector.recordToolUsage('tool', Number.MAX_SAFE_INTEGER, true);
-        collector.recordOutputQuality('task', 1.0, 1.0, 1.0, 1.0, 'Perfect execution');
+        (collector as any).recordToolUsage('tool', Number.MAX_SAFE_INTEGER, true);
+        (collector as any).recordOutputQuality('task', 1.0, 1.0, 1.0, 1.0, 'Perfect execution');
       }).not.toThrow();
     });
 
     it('should handle negative execution times', () => {
       expect(() => {
-        collector.recordToolUsage('tool', -1000, true);
+        (collector as any).recordToolUsage('tool', -1000, true);
       }).not.toThrow();
     });
   });
@@ -356,7 +356,7 @@ describe('QualityMetricsCollector', () => {
   describe('Memory Management', () => {
     it('should cleanup resources on stop', async () => {
       await collector.start();
-      collector.recordToolUsage('test_tool', 100, true);
+      (collector as any).recordToolUsage('test_tool', 100, true);
 
       expect(() => {
         collector.stop();
@@ -370,8 +370,8 @@ describe('QualityMetricsCollector', () => {
         await collector.start();
         expect(collector.isCollectorActive()).toBe(true);
 
-        collector.recordToolUsage(`tool_${i}`, 100, true);
-        collector.recordOutputQuality(`task_${i}`, 0.8 + (i * 0.1));
+        (collector as any).recordToolUsage(`tool_${i}`, 100, true);
+        (collector as any).recordOutputQuality(`task_${i}`, 0.8 + (i * 0.1));
 
         collector.stop();
         expect(collector.isCollectorActive()).toBe(false);

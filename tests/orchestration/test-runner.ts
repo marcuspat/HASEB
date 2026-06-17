@@ -117,7 +117,7 @@ class HASEBTestRunner {
 
       return this.report;
 
-    } catch (error) {
+    } catch (error: any) {
       console.error('❌ Test suite failed:', error);
       throw error;
     }
@@ -147,7 +147,7 @@ class HASEBTestRunner {
         console.log(`      Error: ${result.error}`);
       }
 
-    } catch (error) {
+    } catch (error: any) {
       const duration = Date.now() - suiteStart;
       this.report.results.push({
         suite: name,
@@ -206,7 +206,7 @@ class HASEBTestRunner {
           cleanupSuccessful: true
         }
       };
-    } catch (error) {
+    } catch (error: any) {
       return {
         success: false,
         error: error.message,
@@ -234,7 +234,7 @@ class HASEBTestRunner {
           graphCompiled: true
         }
       };
-    } catch (error) {
+    } catch (error: any) {
       return {
         success: false,
         error: error.message
@@ -283,7 +283,7 @@ class HASEBTestRunner {
           metricsCollected: Object.keys(metrics).length > 0
         }
       };
-    } catch (error) {
+    } catch (error: any) {
       return {
         success: false,
         error: error.message
@@ -318,7 +318,7 @@ class HASEBTestRunner {
           engineShutdown: true
         }
       };
-    } catch (error) {
+    } catch (error: any) {
       return {
         success: false,
         error: error.message
@@ -360,7 +360,7 @@ class HASEBTestRunner {
           allMetricsCollected: allMetricsHaveData
         }
       };
-    } catch (error) {
+    } catch (error: any) {
       return {
         success: false,
         error: error.message
@@ -403,7 +403,7 @@ class HASEBTestRunner {
           serverClosed: true
         }
       };
-    } catch (error) {
+    } catch (error: any) {
       return {
         success: false,
         error: error.message
@@ -442,7 +442,7 @@ class HASEBTestRunner {
           allComponentsIntegrated: true
         }
       };
-    } catch (error) {
+    } catch (error: any) {
       return {
         success: false,
         error: error.message
@@ -474,7 +474,7 @@ class HASEBTestRunner {
           systemHealthy: isHealthy
         }
       };
-    } catch (error) {
+    } catch (error: any) {
       return {
         success: false,
         error: error.message

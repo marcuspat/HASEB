@@ -19,7 +19,7 @@ const mockBenchmarkModel = BenchmarkModel as jest.Mocked<typeof BenchmarkModel>;
 const mockLogger = logger as jest.Mocked<typeof logger>;
 
 describe('Multi-Agent Workflow Integration Tests', () => {
-  let orchestrator: EvaluationOrchestrator;
+  let orchestrator: any;
   let mockAgents: any[];
   let mockBenchmarks: any[];
 
@@ -211,8 +211,8 @@ describe('Multi-Agent Workflow Integration Tests', () => {
 
       const startTime = Date.now();
       const results = await Promise.all(
-        evaluations.map(eval =>
-          orchestrator.executeEvaluation(eval.agentId, eval.benchmarkId, eval.configuration)
+        evaluations.map((evaluation) =>
+          orchestrator.executeEvaluation(evaluation.agentId, evaluation.benchmarkId, evaluation.configuration)
         )
       );
       const endTime = Date.now();
@@ -226,7 +226,7 @@ describe('Multi-Agent Workflow Integration Tests', () => {
 
     it('should handle resource limits during concurrent execution', async () => {
       // Mock orchestrator with limited resources
-      const limitedOrchestrator = new EvaluationOrchestrator();
+      const limitedOrchestrator: any = new EvaluationOrchestrator();
       limitedOrchestrator.setMaxConcurrentEvaluations(2);
 
       const evaluations = Array.from({ length: 5 }, (_, i) => ({
@@ -236,8 +236,8 @@ describe('Multi-Agent Workflow Integration Tests', () => {
         configuration: { timeout: 30000 }
       }));
 
-      const promises = evaluations.map(eval =>
-        limitedOrchestrator.executeEvaluation(eval.agentId, eval.benchmarkId, eval.configuration)
+      const promises = evaluations.map((evaluation) =>
+        limitedOrchestrator.executeEvaluation(evaluation.agentId, evaluation.benchmarkId, evaluation.configuration)
       );
 
       const results = await Promise.allSettled(promises);
@@ -272,8 +272,8 @@ describe('Multi-Agent Workflow Integration Tests', () => {
       ];
 
       const results = await Promise.all(
-        evaluations.map(eval =>
-          orchestrator.executeEvaluation(eval.agentId, eval.benchmarkId, eval.configuration)
+        evaluations.map((evaluation) =>
+          orchestrator.executeEvaluation(evaluation.agentId, evaluation.benchmarkId, evaluation.configuration)
         )
       );
 
@@ -302,8 +302,8 @@ describe('Multi-Agent Workflow Integration Tests', () => {
       }));
 
       await Promise.all(
-        evaluations.map(eval =>
-          orchestrator.executeEvaluation(eval.agentId, eval.benchmarkId, eval.configuration)
+        evaluations.map((evaluation) =>
+          orchestrator.executeEvaluation(evaluation.agentId, evaluation.benchmarkId, evaluation.configuration)
         )
       );
 
@@ -371,7 +371,7 @@ describe('Multi-Agent Workflow Integration Tests', () => {
     it('should emit progress events during evaluation', async () => {
       const progressEvents: any[] = [];
 
-      orchestrator.on('progress', (event) => {
+      orchestrator.on('progress', (event: any) => {
         progressEvents.push(event);
       });
 
@@ -388,7 +388,7 @@ describe('Multi-Agent Workflow Integration Tests', () => {
     it('should emit metrics updates during evaluation', async () => {
       const metricsEvents: any[] = [];
 
-      orchestrator.on('metrics', (event) => {
+      orchestrator.on('metrics', (event: any) => {
         metricsEvents.push(event);
       });
 
@@ -423,8 +423,8 @@ describe('Multi-Agent Workflow Integration Tests', () => {
       const initialMemory = process.memoryUsage().heapUsed;
 
       await Promise.all(
-        evaluations.map(eval =>
-          orchestrator.executeEvaluation(eval.agentId, eval.benchmarkId, eval.configuration)
+        evaluations.map((evaluation) =>
+          orchestrator.executeEvaluation(evaluation.agentId, evaluation.benchmarkId, evaluation.configuration)
         )
       );
 

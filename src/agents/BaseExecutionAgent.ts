@@ -123,7 +123,7 @@ export abstract class BaseExecutionAgent extends EventEmitter {
         status: 'pending',
         configuration: this.configuration,
         logs: [],
-        metrics: null,
+        metrics: undefined,
         startTime: new Date(),
         endTime: undefined
       });
@@ -133,7 +133,7 @@ export abstract class BaseExecutionAgent extends EventEmitter {
       this.startTime = new Date();
       this.isRunning = true;
 
-      await EvaluationModel.updateStatus(this.evaluationId, 'running', this.startTime);
+      await EvaluationModel.updateStatus(this.evaluationId, 'running');
 
       this.emit('started', { evaluationId: this.evaluationId, agentId: this.agentId });
       this.log(`Execution started for evaluation ${this.evaluationId}`);
@@ -163,7 +163,7 @@ export abstract class BaseExecutionAgent extends EventEmitter {
         this.startTime,
         this.endTime
       );
-      await EvaluationModel.updateMetrics(this.evaluationId, this.metrics as EvaluationMetrics);
+      await EvaluationModel.updateMetrics(this.evaluationId, this.metrics as unknown as EvaluationMetrics);
       await EvaluationModel.addLogs(this.evaluationId, this.logs);
 
       this.emit('completed', {

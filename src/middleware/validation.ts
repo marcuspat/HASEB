@@ -9,13 +9,16 @@ export interface ValidationSchema {
 }
 
 export interface ValidationRule {
-  type: 'string' | 'number' | 'boolean' | 'object' | 'array' | 'email' | 'uuid';
+  type: 'string' | 'number' | 'integer' | 'boolean' | 'object' | 'array' | 'email' | 'uuid';
   required?: boolean;
   min?: number;
   max?: number;
   pattern?: RegExp;
   enum?: any[];
   default?: any;
+  format?: string;
+  properties?: Record<string, ValidationRule>;
+  items?: ValidationRule;
   custom?: (value: any) => boolean | string;
 }
 
@@ -130,6 +133,8 @@ function validateType(value: any, type: ValidationRule['type']): boolean {
       return typeof value === 'string';
     case 'number':
       return typeof value === 'number' && !isNaN(value);
+    case 'integer':
+      return typeof value === 'number' && Number.isInteger(value);
     case 'boolean':
       return typeof value === 'boolean';
     case 'object':

@@ -408,7 +408,7 @@ test.describe('HASEB Comprehensive Dashboard Tests', () => {
           new PerformanceObserver((list) => {
             const entries = list.getEntries();
             const lastEntry = entries[entries.length - 1];
-            resolve(lastEntry.element?.tagName || 'unknown');
+            resolve((lastEntry as any).element?.tagName || 'unknown');
           }).observe({ entryTypes: ['largest-contentful-paint'] });
         });
       });
@@ -547,8 +547,8 @@ test.describe('HASEB Comprehensive Dashboard Tests', () => {
     console.log('📸 Screenshots saved in test-screenshots/ directory');
 
     // Generate test report
-    import fs from 'fs';
-    import path from 'path';
+    const fs = require('fs');
+    const path = require('path');
 
     const reportContent = `
 # HASEB Dashboard Test Report
@@ -563,7 +563,7 @@ Generated: ${new Date().toISOString()}
 - Screenshots captured for visual verification
 
 ## Screenshots Generated
-${fs.readdirSync('/workspaces/HASEB/test-screenshots').map(f => `- ${f}`).join('\n')}
+${fs.readdirSync('/workspaces/HASEB/test-screenshots').map((f: any) => `- ${f}`).join('\n')}
 
 ## Test Categories Covered
 1. Dashboard Page Tests

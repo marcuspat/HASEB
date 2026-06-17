@@ -49,9 +49,9 @@ describe('Metrics System Integration Tests', () => {
     app.use('/api/orchestrator', orchestratorRouter);
 
     // Mock console methods
-    jest.spyOn(console, 'debug').mockImplementation();
-    jest.spyOn(console, 'warn').mockImplementation();
-    jest.spyOn(console, 'error').mockImplementation();
+    jest.spyOn(console, 'debug').mockImplementation(() => {});
+    jest.spyOn(console, 'warn').mockImplementation(() => {});
+    jest.spyOn(console, 'error').mockImplementation(() => {});
 
     // Initialize orchestrators
     await metricsOrchestrator.start();
@@ -244,7 +244,7 @@ describe('Metrics System Integration Tests', () => {
   describe('Database Integration', () => {
     it('should store metrics in database', async () => {
       // Mock database operations
-      const mockQuery = jest.fn().mockResolvedValue({
+      const mockQuery = jest.fn<(...args: any[]) => any>().mockResolvedValue({
         rows: [{
           id: 'test-metrics-id',
           evaluation_id: 'test-eval-123',
@@ -256,7 +256,7 @@ describe('Metrics System Integration Tests', () => {
         }]
       });
 
-      jest.spyOn(db, 'query').mockImplementation(mockQuery);
+      jest.spyOn(db, 'query').mockImplementation(mockQuery as any);
 
       const response = await request(app)
         .get('/api/metrics/evaluation/test-eval-123')
@@ -378,7 +378,7 @@ describe('Metrics System Integration Tests', () => {
 
     it('should handle orchestrator errors', async () => {
       // Mock orchestrator error
-      jest.spyOn(evaluationOrchestrator, 'getCurrentEvaluation').mockReturnValue(null);
+      jest.spyOn(evaluationOrchestrator, 'getCurrentEvaluation').mockReturnValue(null as any);
 
       const response = await request(app)
         .get('/api/orchestrator/status')
@@ -408,7 +408,7 @@ describe('Metrics System Integration Tests', () => {
         agentId: 'a'.repeat(10000),
         benchmarkId: 'b'.repeat(10000),
         configuration: {
-          [Array.from({ length: 100 }, (_, i) => `key${i}`)]: 'x'.repeat(1000)
+          [Array.from({ length: 100 }, (_, i) => `key${i}`) as any]: 'x'.repeat(1000)
         }
       };
 

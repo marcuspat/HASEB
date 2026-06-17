@@ -334,7 +334,7 @@ export class ExecutionEngine extends EventEmitter {
         duration,
         tokensUsed: 0,
         cost: 0,
-        errors: [error.message],
+        errors: [error instanceof Error ? error.message : String(error)],
         metrics: {}
       };
 

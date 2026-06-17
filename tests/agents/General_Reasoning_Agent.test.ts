@@ -518,7 +518,7 @@ describe('General_Reasoning_Agent', () => {
       });
 
       const processTaskSpy = jest.spyOn(agent as any, 'processReasoningTask');
-      processTaskSpy.mockImplementation(async function(this: General_Reasoning_Agent, task) {
+      processTaskSpy.mockImplementation(async function(this: General_Reasoning_Agent, task: any) {
         const reasoningResult = await this['executeReasoning'](task, mockPlan);
         const validationResult = await this['validateAnswer'](task, reasoningResult.finalAnswer);
 
@@ -687,7 +687,7 @@ describe('General_Reasoning_Agent', () => {
 
       const executeTasksSpy = jest.spyOn(agent as any, 'executeTasks');
       executeTasksSpy.mockImplementation(async function(this: General_Reasoning_Agent) {
-        const result = await this['processReasoningTask'](mockTask);
+        const result = await this['processReasoningTask'](mockTask as any);
         this['recordTaskCompletion'](result.success, result.tokensUsed, result.cost);
       });
 

@@ -19,15 +19,15 @@ const DashboardPage: React.FC = () => {
 
   // Calculate averages
   const avgSuccessRate = agents.length > 0
-    ? agents.reduce((sum, agent) => sum + agent.performance.taskSuccessRate, 0) / agents.length
+    ? agents.reduce((sum, agent) => sum + (agent.performance?.taskSuccessRate ?? 0), 0) / agents.length
     : 0;
 
   const avgCost = evaluations.length > 0
-    ? evaluations.reduce((sum, eval_) => sum + eval_.metrics.estimatedCost, 0) / evaluations.length
+    ? evaluations.reduce((sum, eval_) => sum + (eval_.metrics?.estimatedCost ?? 0), 0) / evaluations.length
     : 0;
 
   const avgExecutionTime = evaluations.length > 0
-    ? evaluations.reduce((sum, eval_) => sum + eval_.metrics.executionTime, 0) / evaluations.length
+    ? evaluations.reduce((sum, eval_) => sum + (eval_.metrics?.executionTime ?? 0), 0) / evaluations.length
     : 0;
 
   const topAgents = leaderboard.slice(0, 5);

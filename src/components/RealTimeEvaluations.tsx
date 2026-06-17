@@ -66,16 +66,16 @@ const RealTimeEvaluations: React.FC = () => {
                     {evaluation.benchmarkType} Evaluation
                   </h3>
                   <p className="text-sm text-gray-600">
-                    Agent: {evaluation.agentId} • Started: {formatDate(evaluation.startTime)}
+                    Agent: {evaluation.agentId} • Started: {evaluation.startTime ? formatDate(evaluation.startTime) : ''}
                   </p>
                 </div>
               </div>
               <div className="text-right">
                 <div className="text-2xl font-semibold text-gray-900">
-                  {evaluation.progress.toFixed(1)}%
+                  {(evaluation.progress ?? 0).toFixed(1)}%
                 </div>
                 <div className="text-sm text-gray-600">
-                  {formatDuration(Date.now() - new Date(evaluation.startTime).getTime())}
+                  {evaluation.startTime ? formatDuration(Date.now() - new Date(evaluation.startTime).getTime()) : ''}
                 </div>
               </div>
             </div>
@@ -85,7 +85,7 @@ const RealTimeEvaluations: React.FC = () => {
               <div className="w-full bg-gray-200 rounded-full h-2">
                 <div
                   className="bg-primary-600 h-2 rounded-full transition-all duration-300 ease-out"
-                  style={{ width: `${evaluation.progress}%` }}
+                  style={{ width: `${evaluation.progress ?? 0}%` }}
                 />
               </div>
             </div>
@@ -95,25 +95,25 @@ const RealTimeEvaluations: React.FC = () => {
               <div>
                 <span className="text-gray-600">Success Rate:</span>
                 <span className="ml-2 font-medium text-gray-900">
-                  {(evaluation.metrics.taskSuccessRate * 100).toFixed(1)}%
+                  {((evaluation.metrics?.taskSuccessRate ?? 0) * 100).toFixed(1)}%
                 </span>
               </div>
               <div>
                 <span className="text-gray-600">Steps:</span>
                 <span className="ml-2 font-medium text-gray-900">
-                  {evaluation.metrics.totalSteps}
+                  {evaluation.metrics?.totalSteps ?? 0}
                 </span>
               </div>
               <div>
                 <span className="text-gray-600">Tokens:</span>
                 <span className="ml-2 font-medium text-gray-900">
-                  {evaluation.metrics.totalTokens.toLocaleString()}
+                  {(evaluation.metrics?.totalTokens ?? 0).toLocaleString()}
                 </span>
               </div>
               <div>
                 <span className="text-gray-600">Cost:</span>
                 <span className="ml-2 font-medium text-gray-900">
-                  ${evaluation.metrics.estimatedCost.toFixed(3)}
+                  ${(evaluation.metrics?.estimatedCost ?? 0).toFixed(3)}
                 </span>
               </div>
             </div>
@@ -143,7 +143,7 @@ const RealTimeEvaluations: React.FC = () => {
                   </div>
                 </div>
                 <div className="text-sm text-gray-900">
-                  {(evaluation.metrics.taskSuccessRate * 100).toFixed(1)}% success
+                  {((evaluation.metrics?.taskSuccessRate ?? 0) * 100).toFixed(1)}% success
                 </div>
               </div>
             ))}

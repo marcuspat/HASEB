@@ -66,7 +66,7 @@ describe('requestLogger middleware', () => {
       requestLogger(mockReq as any, mockRes as any, mockNext);
 
       // Check that a request ID was generated and is a valid UUID format
-      const requestId = mockReq.headers['x-request-id'];
+      const requestId = (mockReq.headers as any)['x-request-id'];
       expect(requestId).toBeDefined();
       expect(typeof requestId).toBe('string');
       // UUID v4 regex pattern
@@ -150,7 +150,7 @@ describe('requestLogger middleware', () => {
 
       Date.now = jest.fn()
         .mockReturnValueOnce(startTime)
-        .mockReturnValueOnce(endTime);
+        .mockReturnValueOnce(endTime) as any;
 
       // Store the original end function before it gets overridden
       const originalEnd = mockRes.end;
@@ -238,7 +238,7 @@ describe('requestLogger middleware', () => {
   describe('logApiCall', () => {
     beforeEach(() => {
       // Add request ID to headers for logApiCall tests
-      mockReq.headers['x-request-id'] = 'test-request-id-456';
+      (mockReq.headers as any)['x-request-id'] = 'test-request-id-456';
       (mockReq as any).user = { id: 'user-123' };
     });
 
@@ -269,7 +269,7 @@ describe('requestLogger middleware', () => {
     });
 
     it('should handle missing request ID', () => {
-      delete mockReq.headers['x-request-id'];
+      delete (mockReq.headers as any)['x-request-id'];
 
       logApiCall(mockReq as any, mockRes as any, mockNext);
 
@@ -307,7 +307,7 @@ describe('requestLogger middleware', () => {
       // Should not throw when calling res.end
       expect(() => {
         try {
-          errorEnd('test');
+          (errorEnd as any)('test');
         } catch (error) {
           // The error should be caught and logged
           expect(logger.info).toHaveBeenCalled();

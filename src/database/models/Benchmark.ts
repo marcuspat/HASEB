@@ -64,7 +64,7 @@ export class BenchmarkModel {
     const query = 'SELECT * FROM benchmarks WHERE type = $1 ORDER BY created_at DESC';
     const result = await db.query(query, [type]);
 
-    return result.rows.map(row => ({
+    return result.rows.map((row: any) => ({
       id: row.id,
       name: row.name,
       type: row.type,
@@ -82,7 +82,7 @@ export class BenchmarkModel {
     const query = 'SELECT * FROM benchmarks WHERE dataset = $1 ORDER BY created_at DESC';
     const result = await db.query(query, [dataset]);
 
-    return result.rows.map(row => ({
+    return result.rows.map((row: any) => ({
       id: row.id,
       name: row.name,
       type: row.type,
@@ -100,7 +100,7 @@ export class BenchmarkModel {
     const query = 'SELECT * FROM benchmarks WHERE is_active = true ORDER BY created_at DESC';
     const result = await db.query(query);
 
-    return result.rows.map(row => ({
+    return result.rows.map((row: any) => ({
       id: row.id,
       name: row.name,
       type: row.type,
@@ -144,7 +144,7 @@ export class BenchmarkModel {
     params.push(limit, offset);
     const result = await db.query(query, params);
 
-    const benchmarks = result.rows.map(row => ({
+    const benchmarks = result.rows.map((row: any) => ({
       id: row.id,
       name: row.name,
       type: row.type,
@@ -278,7 +278,7 @@ export class BenchmarkModel {
 
     const result = await db.query(searchQuery, [searchPattern, limit, offset]);
 
-    const benchmarks = result.rows.map(row => ({
+    const benchmarks = result.rows.map((row: any) => ({
       id: row.id,
       name: row.name,
       type: row.type,
@@ -297,12 +297,12 @@ export class BenchmarkModel {
   static async getTypes(): Promise<string[]> {
     const query = 'SELECT DISTINCT type FROM benchmarks ORDER BY type';
     const result = await db.query(query);
-    return result.rows.map(row => row.type);
+    return result.rows.map((row: any) => row.type);
   }
 
   static async getDatasets(): Promise<string[]> {
     const query = 'SELECT DISTINCT dataset FROM benchmarks ORDER BY dataset';
     const result = await db.query(query);
-    return result.rows.map(row => row.dataset);
+    return result.rows.map((row: any) => row.dataset);
   }
 }

@@ -110,7 +110,7 @@ export class General_Reasoning_Agent extends BaseExecutionAgent {
 
         if (result.success) {
           completedTasks++;
-          this.recordTaskCompletion(result.tokensUsed, result.cost);
+          this.recordTaskCompletion(true, result.tokensUsed, result.cost);
           this.log(`Reasoning task ${task.taskId} completed successfully`);
         } else {
           this.recordTaskCompletion(false, result.tokensUsed, result.cost);

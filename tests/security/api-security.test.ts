@@ -257,7 +257,7 @@ describe('API Security Tests', () => {
       ];
 
       for (const req of malformedRequests) {
-        const requestBuilder = request(app)[req.method.toLowerCase()](req.path);
+        const requestBuilder = (request(app) as any)[req.method.toLowerCase()](req.path);
 
         if (req.headers) {
           Object.entries(req.headers).forEach(([key, value]) => {

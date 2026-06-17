@@ -10,7 +10,6 @@ import {
 } from 'chart.js';
 import { Bar } from 'react-chartjs-2';
 import { useDashboardStore } from '../store/useDashboardStore';
-import { calculateOverallScore } from '../utils/helpers';
 
 ChartJS.register(
   CategoryScale,
@@ -41,12 +40,12 @@ const TopAgentsChart: React.FC = () => {
   const data = topAgents.length > 0 ? topAgents : generateMockData();
 
   const chartData = {
-    labels: data.map(agent => agent.name || agent.agent.name),
+    labels: data.map(agent => ('agent' in agent ? agent.agent.name : agent.name)),
     datasets: [
       {
         label: 'Overall Score',
         data: data.map(agent =>
-          agent.overallScore || calculateOverallScore(agent.metrics || {})
+          'agent' in agent ? agent.overallScore : agent.score
         ),
         backgroundColor: 'rgba(59, 130, 246, 0.8)',
         borderColor: 'rgb(59, 130, 246)',
@@ -56,7 +55,9 @@ const TopAgentsChart: React.FC = () => {
       {
         label: 'Success Rate',
         data: data.map(agent =>
-          ((agent.metrics?.taskSuccessRate || agent.successRate || 0) * 100)
+          'agent' in agent
+            ? (agent.metrics?.taskSuccessRate ?? 0) * 100
+            : agent.successRate
         ),
         backgroundColor: 'rgba(34, 197, 94, 0.8)',
         borderColor: 'rgb(34, 197, 94)',

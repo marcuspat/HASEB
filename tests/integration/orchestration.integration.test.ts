@@ -150,14 +150,14 @@ describe('HASEB LangGraph Orchestration Integration Tests', () => {
       expect(result.id).toBeDefined();
       expect(result.agentId).toBe(testAgentId);
       expect(result.benchmarkId).toBe(testBenchmarkId);
-      expect(result.logs).toHaveLength.greaterThan(0);
+      (expect(result.logs) as any).toHaveLength.greaterThan(0);
       expect(result.metrics).toBeDefined();
       expect(result.startTime).toBeDefined();
       expect(result.endTime).toBeDefined();
 
       console.log(`✅ Evaluation completed successfully`);
       console.log(`   Status: ${result.status}`);
-      console.log(`   Duration: ${result.endTime.getTime() - result.startTime.getTime()}ms`);
+      console.log(`   Duration: ${(result.endTime as any).getTime() - (result.startTime as any).getTime()}ms`);
       console.log(`   Logs: ${result.logs.length}`);
       console.log(`   Metrics collected: ${Object.keys(result.metrics || {}).length}`);
     });
@@ -183,7 +183,7 @@ describe('HASEB LangGraph Orchestration Integration Tests', () => {
         );
         fail('Expected second evaluation to be rejected');
       } catch (error) {
-        expect(error.message).toContain('already running');
+        expect((error as any).message).toContain('already running');
       }
 
       // Wait for first evaluation to complete
@@ -210,7 +210,7 @@ describe('HASEB LangGraph Orchestration Integration Tests', () => {
         testMode: true
       };
 
-      const agent = new SWE_Bench_Agent(config);
+      const agent: any = new SWE_Bench_Agent(config as any);
 
       // Mock Docker commands for testing
       const mockSpawn = jest.fn();
@@ -251,7 +251,7 @@ describe('HASEB LangGraph Orchestration Integration Tests', () => {
         testMode: true
       };
 
-      const agent = new GUI_Automation_Agent(config);
+      const agent: any = new GUI_Automation_Agent(config as any);
       agent.start();
 
       // Wait for setup
@@ -278,7 +278,7 @@ describe('HASEB LangGraph Orchestration Integration Tests', () => {
         testMode: true
       };
 
-      const agent = new General_Reasoning_Agent(config);
+      const agent: any = new General_Reasoning_Agent(config as any);
       agent.start();
 
       // Wait for reasoning tasks
@@ -488,7 +488,7 @@ describe('HASEB LangGraph Orchestration Integration Tests', () => {
       const progressUpdates: any[] = [];
 
       // Mock WebSocket-like event handling
-      evaluationOrchestrator.on('progress', (update) => {
+      (evaluationOrchestrator as any).on('progress', (update: any) => {
         progressUpdates.push(update);
       });
 

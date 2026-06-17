@@ -42,10 +42,10 @@ describe('Logger', () => {
     mockMkdirSync = fs.mkdirSync;
 
     // Mock console methods to prevent noise in tests
-    jest.spyOn(console, 'log').mockImplementation();
-    jest.spyOn(console, 'error').mockImplementation();
-    jest.spyOn(console, 'warn').mockImplementation();
-    jest.spyOn(console, 'info').mockImplementation();
+    jest.spyOn(console, 'log').mockImplementation(() => {});
+    jest.spyOn(console, 'error').mockImplementation(() => {});
+    jest.spyOn(console, 'warn').mockImplementation(() => {});
+    jest.spyOn(console, 'info').mockImplementation(() => {});
   });
 
   afterEach(() => {
@@ -193,7 +193,7 @@ describe('Logger', () => {
   describe('Exception and Rejection Handlers', () => {
     it('should configure exception handlers', () => {
       const winston = require('winston');
-      const mockLogger = mockCreateLogger.mock.results[0].value;
+      const mockLogger = mockCreateLogger.mock.results[0].value as any;
 
       expect(mockLogger.exceptionHandlers).toBeDefined();
       expect(Array.isArray(mockLogger.exceptionHandlers)).toBe(true);
@@ -201,7 +201,7 @@ describe('Logger', () => {
 
     it('should configure rejection handlers', () => {
       const winston = require('winston');
-      const mockLogger = mockCreateLogger.mock.results[0].value;
+      const mockLogger = mockCreateLogger.mock.results[0].value as any;
 
       expect(mockLogger.rejectionHandlers).toBeDefined();
       expect(Array.isArray(mockLogger.rejectionHandlers)).toBe(true);

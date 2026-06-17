@@ -107,21 +107,21 @@ describe('Evaluation Metrics Integration Tests', () => {
     };
 
     // Mock database methods
-    (AgentModel.findById as jest.Mock).mockResolvedValue(mockAgent);
-    (BenchmarkModel.findById as jest.Mock).mockResolvedValue(mockBenchmark);
-    (EvaluationModel.create as jest.Mock).mockResolvedValue(mockEvaluation);
-    (EvaluationModel.updateStatusWithTime as jest.Mock).mockResolvedValue(true);
-    (EvaluationModel.updateMetrics as jest.Mock).mockResolvedValue(true);
+    (AgentModel.findById as any).mockResolvedValue(mockAgent);
+    (BenchmarkModel.findById as any).mockResolvedValue(mockBenchmark);
+    (EvaluationModel.create as any).mockResolvedValue(mockEvaluation);
+    (EvaluationModel.updateStatusWithTime as any).mockResolvedValue(true);
+    (EvaluationModel.updateMetrics as any).mockResolvedValue(true);
 
     // Create orchestrators
     evaluationOrchestrator = new EvaluationOrchestrator();
     metricsOrchestrator = new MetricsOrchestrator(context);
 
     // Mock console methods
-    jest.spyOn(console, 'debug').mockImplementation();
-    jest.spyOn(console, 'warn').mockImplementation();
-    jest.spyOn(console, 'error').mockImplementation();
-    jest.spyOn(console, 'info').mockImplementation();
+    jest.spyOn(console, 'debug').mockImplementation(() => {});
+    jest.spyOn(console, 'warn').mockImplementation(() => {});
+    jest.spyOn(console, 'error').mockImplementation(() => {});
+    jest.spyOn(console, 'info').mockImplementation(() => {});
 
     // Initialize orchestrators
     await evaluationOrchestrator.initialize();
@@ -178,7 +178,7 @@ describe('Evaluation Metrics Integration Tests', () => {
 
     it('should handle evaluation failures with metrics collection', async () => {
       // Mock agent not found
-      (AgentModel.findById as jest.Mock).mockResolvedValue(null);
+      (AgentModel.findById as any).mockResolvedValue(null);
 
       await expect(
         evaluationOrchestrator.executeEvaluation('invalid-agent', 'test-benchmark-789')
@@ -363,7 +363,7 @@ describe('Evaluation Metrics Integration Tests', () => {
   describe('Error Handling and Recovery', () => {
     it('should handle database connection errors', async () => {
       // Mock database error
-      (EvaluationModel.create as jest.Mock).mockRejectedValue(new Error('Database connection failed'));
+      (EvaluationModel.create as any).mockRejectedValue(new Error('Database connection failed'));
 
       await expect(
         evaluationOrchestrator.executeEvaluation('test-agent-456', 'test-benchmark-789')
@@ -409,7 +409,7 @@ describe('Evaluation Metrics Integration Tests', () => {
 
     it('should cleanup resources on evaluation failure', async () => {
       // Mock evaluation failure
-      (AgentModel.findById as jest.Mock).mockRejectedValue(new Error('Agent lookup failed'));
+      (AgentModel.findById as any).mockRejectedValue(new Error('Agent lookup failed'));
 
       await expect(
         evaluationOrchestrator.executeEvaluation('test-agent-456', 'test-benchmark-789')
@@ -482,14 +482,14 @@ describe('Evaluation Metrics Integration Tests', () => {
   describe('Data Validation and Integrity', () => {
     it('should validate evaluation inputs', async () => {
       // Test invalid agent ID
-      (AgentModel.findById as jest.Mock).mockResolvedValue(null);
+      (AgentModel.findById as any).mockResolvedValue(null);
       await expect(
         evaluationOrchestrator.executeEvaluation('', 'test-benchmark-789')
       ).rejects.toThrow();
 
       // Test invalid benchmark ID
-      (AgentModel.findById as jest.Mock).mockResolvedValue(mockAgent);
-      (BenchmarkModel.findById as jest.Mock).mockResolvedValue(null);
+      (AgentModel.findById as any).mockResolvedValue(mockAgent);
+      (BenchmarkModel.findById as any).mockResolvedValue(null);
       await expect(
         evaluationOrchestrator.executeEvaluation('test-agent-456', '')
       ).rejects.toThrow();

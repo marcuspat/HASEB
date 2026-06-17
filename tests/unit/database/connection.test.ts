@@ -40,7 +40,7 @@ describe('DatabaseConnection', () => {
         password: 'password',
       };
 
-      const instance1 = DatabaseConnection.getInstance(config);
+      const instance1 = DatabaseConnection.getInstance(config as any);
       const instance2 = DatabaseConnection.getInstance();
       expect(instance1).toBe(instance2);
     });
@@ -92,7 +92,7 @@ describe('DatabaseConnection', () => {
       `);
       expect(result.rows).toHaveLength(5);
       expect(result.rowCount).toBe(5);
-      result.rows.forEach((row, index) => {
+      result.rows.forEach((row: any, index: number) => {
         expect(row.number).toBe(index + 1);
       });
     });
@@ -200,7 +200,7 @@ describe('DatabaseConnection', () => {
         password: 'password',
       };
 
-      const connection = new DatabaseConnection(config);
+      const connection = new (DatabaseConnection as any)(config);
       connection['pool'] = mockPool;
 
       await expect(connection.query('SELECT 1')).rejects.toThrow('Pool exhausted');
@@ -249,7 +249,7 @@ describe('DatabaseConnection', () => {
         password: 'password',
       };
 
-      const connection = DatabaseConnection.getInstance(config);
+      const connection = DatabaseConnection.getInstance(config as any);
       await connection.close();
 
       // Should not throw when closing already closed connection

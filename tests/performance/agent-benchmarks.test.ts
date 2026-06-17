@@ -17,7 +17,7 @@ const mockBenchmarkModel = BenchmarkModel as jest.Mocked<typeof BenchmarkModel>;
 const mockEvaluationModel = EvaluationModel as jest.Mocked<typeof EvaluationModel>;
 
 describe('Agent Performance Benchmarks', () => {
-  let orchestrator: EvaluationOrchestrator;
+  let orchestrator: any;
   let mockAgent: any;
   let mockBenchmark: any;
 
@@ -116,8 +116,8 @@ describe('Agent Performance Benchmarks', () => {
       }));
 
       const results = await Promise.all(
-        evaluations.map(eval =>
-          orchestrator.executeEvaluation(eval.agentId, eval.benchmarkId, eval.configuration)
+        evaluations.map((evaluation: any) =>
+          orchestrator.executeEvaluation(evaluation.agentId, evaluation.benchmarkId, evaluation.configuration)
         )
       );
 
@@ -144,8 +144,8 @@ describe('Agent Performance Benchmarks', () => {
         }));
 
         await Promise.all(
-          evaluations.map(eval =>
-            orchestrator.executeEvaluation(eval.agentId, eval.benchmarkId, eval.configuration)
+          evaluations.map((evaluation: any) =>
+            orchestrator.executeEvaluation(evaluation.agentId, evaluation.benchmarkId, evaluation.configuration)
           )
         );
 
@@ -177,8 +177,8 @@ describe('Agent Performance Benchmarks', () => {
       }));
 
       await Promise.all(
-        evaluations.map(eval =>
-          orchestrator.executeEvaluation(eval.agentId, eval.benchmarkId, eval.configuration)
+        evaluations.map((evaluation: any) =>
+          orchestrator.executeEvaluation(evaluation.agentId, evaluation.benchmarkId, evaluation.configuration)
         )
       );
 
@@ -230,8 +230,8 @@ describe('Agent Performance Benchmarks', () => {
       }));
 
       await Promise.all(
-        evaluations.map(eval =>
-          orchestrator.executeEvaluation(eval.agentId, eval.benchmarkId, eval.configuration)
+        evaluations.map((evaluation: any) =>
+          orchestrator.executeEvaluation(evaluation.agentId, evaluation.benchmarkId, evaluation.configuration)
         )
       );
 
@@ -283,7 +283,7 @@ describe('Agent Performance Benchmarks', () => {
       });
 
       const startTime = performance.now();
-      const result = await agent.execute();
+      const result: any = await agent.execute();
       const endTime = performance.now();
 
       expect(result.success).toBe(true);
@@ -304,7 +304,7 @@ describe('Agent Performance Benchmarks', () => {
       });
 
       const startTime = performance.now();
-      const result = await agent.execute();
+      const result: any = await agent.execute();
       const endTime = performance.now();
 
       expect(result.success).toBe(true);
@@ -324,7 +324,7 @@ describe('Agent Performance Benchmarks', () => {
       });
 
       const startTime = performance.now();
-      const result = await agent.execute();
+      const result: any = await agent.execute();
       const endTime = performance.now();
 
       expect(result.success).toBe(true);
@@ -348,8 +348,8 @@ describe('Agent Performance Benchmarks', () => {
       }));
 
       const results = await Promise.allSettled(
-        evaluations.map(eval =>
-          orchestrator.executeEvaluation(eval.agentId, eval.benchmarkId, eval.configuration)
+        evaluations.map((evaluation: any) =>
+          orchestrator.executeEvaluation(evaluation.agentId, evaluation.benchmarkId, evaluation.configuration)
         )
       );
 
@@ -381,8 +381,8 @@ describe('Agent Performance Benchmarks', () => {
       }));
 
       const initialResults = await Promise.allSettled(
-        resourceIntensiveEvals.map(eval =>
-          orchestrator.executeEvaluation(eval.agentId, eval.benchmarkId, eval.configuration)
+        resourceIntensiveEvals.map((evaluation: any) =>
+          orchestrator.executeEvaluation(evaluation.agentId, evaluation.benchmarkId, evaluation.configuration)
         )
       );
 

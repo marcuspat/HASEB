@@ -43,7 +43,7 @@ export class EnvironmentManager extends EventEmitter {
   private environments: Map<string, EvaluationEnvironment>;
   private dockerEnvironments: Map<string, DockerEnvironment>;
   private sandboxEnvironments: Map<string, SandboxEnvironment>;
-  private cleanupInterval: NodeJS.Timeout;
+  private cleanupInterval!: NodeJS.Timeout;
   private defaultEnvironmentType: 'docker' | 'sandbox' | 'local';
   private resourceLimits: {
     maxCpu: number;
@@ -271,7 +271,8 @@ CMD ["npm", "start"]
   private async createSandboxEnvironment(evaluationId: string, config: EnvironmentConfig): Promise<EvaluationEnvironment> {
     try {
       // Try to use E2B sandbox if available
-      const { createSandbox } = await import('@e2b/code-interpreter').catch(() => null);
+      // @ts-ignore optional peer dependency, only present when sandbox execution is enabled
+      const { createSandbox } = await import('@e2b/code-interpreter' as any).catch(() => null);
 
       if (createSandbox) {
         return await this.createE2BSandbox(evaluationId, config);
@@ -646,9 +647,9 @@ CMD ["npm", "start"]
       if (dockerEnv) {
         try {
           const info = await this.getDockerContainerInfo(dockerEnv.containerId);
-          environment.status = info.State === 'running' ? 'ready' : 'stopped';
+          environment.status = (info.State === 'running' ? 'ready' : 'stopped') as any;
         } catch (error) {
-          environment.status = 'error';
+          environment.status = 'error' as any;
         }
       }
     }

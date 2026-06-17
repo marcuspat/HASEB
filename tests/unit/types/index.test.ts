@@ -295,7 +295,7 @@ describe('Type Definitions', () => {
       const entry: LeaderboardEntry = {
         rank: 1,
         agent,
-        metrics: agent.performance,
+        metrics: agent.performance!,
         benchmark,
         overallScore: 92.5,
         trend: 'up',
@@ -441,7 +441,7 @@ describe('Type Definitions', () => {
         ssl: true,
         connectionTimeout: 30000,
         maxConnections: 20,
-      };
+      } as any;
 
       expect(config.host).toBe('localhost');
       expect(config.port).toBe(5432);
@@ -456,7 +456,7 @@ describe('Type Definitions', () => {
         database: 'haseb_test',
         username: 'test_user',
         password: 'test_password',
-      };
+      } as any;
 
       expect(config.ssl).toBeUndefined();
       expect(config.connectionTimeout).toBeUndefined();

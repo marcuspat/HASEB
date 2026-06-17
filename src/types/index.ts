@@ -2,23 +2,30 @@ export interface Agent {
   id: string;
   name: string;
   type: string;
-  status: 'active' | 'idle' | 'busy' | 'error';
+  status: 'active' | 'idle' | 'busy' | 'error' | 'inactive' | 'training';
+  description?: string;
   capabilities: string[];
-  performance: PerformanceMetrics;
-  lastActive: string;
+  configuration?: Record<string, any>;
+  performance?: PerformanceMetrics;
+  lastActive?: string;
   createdAt: string;
+  updatedAt?: string;
 }
 
 export interface Evaluation {
   id: string;
   agentId: string;
   benchmarkId: string;
+  benchmarkType?: string;
   status: 'pending' | 'running' | 'completed' | 'failed' | 'cancelled';
+  progress?: number;
   startTime?: Date;
   endTime?: Date;
   configuration: Record<string, any>;
   logs: EvaluationLog[];
   metrics?: Partial<EvaluationMetrics>;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface EvaluationMetrics {
@@ -59,13 +66,18 @@ export interface PerformanceMetrics {
 export interface Benchmark {
   id: string;
   name: string;
-  type: 'swe-bench' | 'gaia' | 'osworld' | 'webarena' | 'agentbench';
+  type: 'swe-bench' | 'gaia' | 'osworld' | 'webarena' | 'agentbench' | 'custom';
   description: string;
-  totalTasks: number;
-  completedTasks: number;
-  difficulty: 'easy' | 'medium' | 'hard' | 'expert';
+  dataset?: string;
+  evaluationCriteria?: any[];
+  configuration?: Record<string, any>;
+  totalTasks?: number;
+  completedTasks?: number;
+  difficulty?: 'easy' | 'medium' | 'hard' | 'expert';
   isActive: boolean;
   lastRun?: string;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface LeaderboardEntry {
@@ -135,6 +147,7 @@ export interface ApiResponse<T = any> {
     timestamp: Date;
     requestId?: string;
     version?: string;
+    [key: string]: unknown;
   };
 }
 

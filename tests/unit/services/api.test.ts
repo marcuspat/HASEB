@@ -1,4 +1,5 @@
-import { ApiService } from '@/services/api';
+import { apiService } from '@/services/api';
+const ApiService: any = (apiService as any).constructor;
 import { mockDatabaseConnection } from '../../helpers/mocks';
 
 // Mock the database connection
@@ -10,7 +11,7 @@ jest.mock('../../../src/database/connection', () => ({
 global.fetch = jest.fn();
 
 describe('ApiService', () => {
-  let apiService: ApiService;
+  let apiService: any;
 
   beforeEach(() => {
     apiService = new ApiService({
@@ -277,7 +278,7 @@ describe('ApiService', () => {
     it('should handle custom response transformations', async () => {
       const service = new ApiService({
         baseURL: 'http://localhost:3000/api',
-        transformResponse: (response) => ({
+        transformResponse: (response: any) => ({
           ...response,
           timestamp: new Date().toISOString(),
         }),
@@ -443,7 +444,7 @@ describe('ApiService', () => {
       expect(fetch).toHaveBeenCalledTimes(10);
 
       // Verify all responses are successful
-      responses.forEach(response => {
+      responses.forEach((response: any) => {
         expect(response.success).toBe(true);
       });
     });

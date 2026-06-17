@@ -148,7 +148,7 @@ describe('HASEB Orchestration System Integration Tests (Node Environment)', () =
       expect(result.id).toBeDefined();
       expect(result.agentId).toBe(testAgentId);
       expect(result.benchmarkId).toBe(testBenchmarkId);
-      expect(result.logs).toHaveLength.greaterThan(0);
+      (expect(result.logs) as any).toHaveLength.greaterThan(0);
       expect(result.metrics).toBeDefined();
       expect(result.startTime).toBeDefined();
       expect(result.endTime).toBeDefined();

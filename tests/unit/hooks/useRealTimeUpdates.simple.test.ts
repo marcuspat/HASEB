@@ -4,10 +4,10 @@ import { describe, it, expect, beforeEach, afterEach, jest } from '@jest/globals
 // Mock the API service completely to avoid import.meta.env issues
 jest.mock('@/services/api', () => ({
   apiService: {
-    getAgents: jest.fn().mockResolvedValue([]),
-    getEvaluations: jest.fn().mockResolvedValue([]),
-    getBenchmarks: jest.fn().mockResolvedValue([]),
-    getLeaderboard: jest.fn().mockResolvedValue([]),
+    getAgents: jest.fn(() => Promise.resolve([])),
+    getEvaluations: jest.fn(() => Promise.resolve([])),
+    getBenchmarks: jest.fn(() => Promise.resolve([])),
+    getLeaderboard: jest.fn(() => Promise.resolve([])),
   },
 }));
 
@@ -51,7 +51,7 @@ const mockWebSocket = {
 jest.useFakeTimers();
 
 // Import the hook after mocking
-const { useRealTimeUpdates } = await import('@/hooks/useRealTimeUpdates');
+const { useRealTimeUpdates } = require('@/hooks/useRealTimeUpdates');
 
 describe('useRealTimeUpdates', () => {
   let originalWebSocket: typeof WebSocket;
@@ -89,7 +89,7 @@ describe('useRealTimeUpdates', () => {
 
     it('should use custom WebSocket URL from environment', () => {
       // Update the import.meta.env mock
-      Object.defineProperty(global.import.meta.env, 'VITE_WS_URL', {
+      Object.defineProperty((global as any).import.meta.env, 'VITE_WS_URL', {
         value: 'ws://custom-server:8080',
         writable: true,
       });
@@ -123,7 +123,7 @@ describe('useRealTimeUpdates', () => {
 
     it('should handle initial data fetch errors', async () => {
       const { apiService } = require('@/services/api');
-      const consoleSpy = jest.spyOn(console, 'error').mockImplementation();
+      const consoleSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
 
       apiService.getAgents.mockRejectedValue(new Error('API Error'));
       apiService.getEvaluations.mockRejectedValue(new Error('API Error'));
@@ -166,7 +166,7 @@ describe('useRealTimeUpdates', () => {
 
   describe('Error Handling', () => {
     it('should handle WebSocket connection errors', () => {
-      const consoleSpy = jest.spyOn(console, 'error').mockImplementation();
+      const consoleSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
 
       // Mock WebSocket to throw
       global.WebSocket = jest.fn().mockImplementation(() => {
