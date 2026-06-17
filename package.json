@@ -26,7 +26,10 @@
     "start": "node dist/server.js",
     "migrate": "tsx src/database/migrate.ts",
     "seed": "tsx src/database/seed.ts",
-    "seed:test": "tsx src/database/seed-test.ts"
+    "seed:test": "tsx src/database/seed-test.ts",
+    "seed:swebench": "tsx src/database/seeds/swebench-tasks.ts",
+    "seed:leaderboard": "tsx src/database/seeds/leaderboard-seed.ts",
+    "seed:all": "npm run seed:leaderboard && npm run seed:swebench"
   },
   "keywords": [],
   "author": "",
