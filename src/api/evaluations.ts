@@ -1,7 +1,12 @@
 import { Router, Request, Response } from 'express';
+import { randomUUID } from 'crypto';
 import { EvaluationModel } from '../database/models/Evaluation';
 import { AgentModel } from '../database/models/Agent';
 import { BenchmarkModel } from '../database/models/Benchmark';
+import { BenchmarkTaskModel } from '../database/models/BenchmarkTaskModel';
+import { ExecutionJobModel } from '../database/models/ExecutionJobModel';
+import { getCoordinator } from '../application/evaluation/coordinator';
+import { SWE_BENCH_LITE_BENCHMARK_ID } from '../database/seeds/constants';
 import { logger } from '../utils/logger';
 import { validateRequest, commonSchemas } from '../middleware/validation';
 
@@ -178,31 +183,114 @@ router.get('/:id', async (req: Request, res: Response) => {
  *       500:
  *         description: Server error
  */
-router.post('/', validateRequest(commonSchemas.evaluationCreate), async (req: Request, res: Response) => {
-  try {
-    const { agentId, benchmarkId, configuration, status } = req.body;
+/**
+ * Public agent submission: creates an agent, an evaluation, one execution job
+ * per benchmark task (up to maxTasks), and kicks off processing. Returns the
+ * evaluationId so the client can watch live progress over websockets.
+ */
+async function handleSubmission(body: any, res: Response): Promise<Response> {
+  const agentName = String(body.agentName).trim();
+  const modelProvider = typeof body.modelProvider === 'string' ? body.modelProvider : 'other';
+  const agentPatch = String(body.agentPatch ?? '');
 
-    // Validate agent exists
+  let maxTasks = parseInt(String(body.maxTasks ?? '10'), 10);
+  if (Number.isNaN(maxTasks)) maxTasks = 10;
+  maxTasks = Math.max(1, Math.min(300, maxTasks));
+
+  const rawBenchmarkId = String(body.benchmarkId ?? 'swe-bench-lite');
+  const benchmarkId = rawBenchmarkId === 'swe-bench-lite' ? SWE_BENCH_LITE_BENCHMARK_ID : rawBenchmarkId;
+
+  const benchmark = await BenchmarkModel.findById(benchmarkId);
+  if (!benchmark) {
+    return res.status(400).json({
+      success: false,
+      error: { code: 'VALIDATION_ERROR', message: 'Benchmark not found. Seed it first (npm run seed:leaderboard).' },
+    });
+  }
+
+  // Each submission is its own agent record (carries the model provider).
+  const agent = await AgentModel.create({
+    name: agentName,
+    type: 'swe',
+    status: 'active',
+    description: `${modelProvider} agent submission`,
+    capabilities: [],
+    configuration: { modelProvider, source: 'submission' },
+  } as any);
+
+  const evaluation = await EvaluationModel.create({
+    agentId: agent.id,
+    benchmarkId,
+    status: 'pending',
+    configuration: { agentName, modelProvider, maxTasks },
+    logs: [],
+    metrics: undefined,
+    startTime: new Date(),
+    endTime: undefined,
+  });
+
+  const tasks = await BenchmarkTaskModel.findByBenchmark(benchmarkId, maxTasks);
+  for (const task of tasks) {
+    await ExecutionJobModel.create({
+      id: randomUUID(),
+      evaluationId: evaluation.id,
+      benchmarkTaskId: task.id,
+      agentId: agent.id,
+      agentPatch,
+    });
+  }
+
+  const coordinator = getCoordinator();
+  if (coordinator) {
+    await coordinator.start(evaluation.id, agent.id, benchmarkId);
+  } else {
+    logger.warn('No EvaluationCoordinator wired; jobs created but not processed');
+  }
+
+  return res.status(201).json({
+    success: true,
+    data: {
+      evaluationId: evaluation.id,
+      id: evaluation.id,
+      status: 'queued',
+      totalTasks: tasks.length,
+      agentId: agent.id,
+      benchmarkId,
+    },
+  });
+}
+
+router.post('/', async (req: Request, res: Response) => {
+  try {
+    const body = req.body || {};
+
+    // New public submission shape (agentName + agentPatch).
+    if (typeof body.agentName === 'string' && body.agentName.trim() && typeof body.agentPatch === 'string') {
+      return await handleSubmission(body, res);
+    }
+
+    // Legacy shape: { agentId, benchmarkId }.
+    const { agentId, benchmarkId, configuration, status } = body;
+    if (!agentId || !benchmarkId) {
+      return res.status(400).json({
+        success: false,
+        error: { code: 'VALIDATION_ERROR', message: 'agentId and benchmarkId are required' },
+      });
+    }
+
     const agent = await AgentModel.findById(agentId);
     if (!agent) {
       return res.status(400).json({
         success: false,
-        error: {
-          code: 'VALIDATION_ERROR',
-          message: 'Agent not found'
-        }
+        error: { code: 'VALIDATION_ERROR', message: 'Agent not found' },
       });
     }
 
-    // Validate benchmark exists
     const benchmark = await BenchmarkModel.findById(benchmarkId);
     if (!benchmark) {
       return res.status(400).json({
         success: false,
-        error: {
-          code: 'VALIDATION_ERROR',
-          message: 'Benchmark not found'
-        }
+        error: { code: 'VALIDATION_ERROR', message: 'Benchmark not found' },
       });
     }
 
@@ -214,13 +302,10 @@ router.post('/', validateRequest(commonSchemas.evaluationCreate), async (req: Re
       logs: [],
       metrics: undefined,
       startTime: new Date(),
-      endTime: undefined
+      endTime: undefined,
     });
 
-    res.status(201).json({
-      success: true,
-      data: evaluation
-    });
+    res.status(201).json({ success: true, data: evaluation });
 
   } catch (error) {
     logger.error('Failed to create evaluation:', error);

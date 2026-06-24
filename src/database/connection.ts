@@ -258,14 +258,35 @@ export class DatabaseConnection {
 // Determine database type from environment
 const dbType = (process.env.DB_TYPE || 'postgresql').toLowerCase();
 
+// Support a single DATABASE_URL (Fly.io / docker-compose / Heroku style) in
+// addition to the discrete DB_* variables. The URL wins when present.
+function parseDatabaseUrl(url?: string): Partial<DatabaseConfig> {
+  if (!url) return {};
+  try {
+    const parsed = new URL(url);
+    return {
+      host: decodeURIComponent(parsed.hostname),
+      port: parsed.port ? parseInt(parsed.port) : 5432,
+      database: decodeURIComponent(parsed.pathname.replace(/^\//, '')) || 'haseb',
+      username: decodeURIComponent(parsed.username) || 'postgres',
+      password: decodeURIComponent(parsed.password) || '',
+      ssl: parsed.searchParams.get('sslmode') === 'require',
+    };
+  } catch {
+    return {};
+  }
+}
+
+const urlConfig = dbType === 'sqlite' ? {} : parseDatabaseUrl(process.env.DATABASE_URL);
+
 export const db = DatabaseConnection.getInstance({
   type: dbType as 'postgresql' | 'sqlite',
-  host: process.env.DB_HOST || 'localhost',
-  port: parseInt(process.env.DB_PORT || '5432'),
-  database: process.env.DB_NAME || 'haseb',
-  username: process.env.DB_USER || 'postgres',
-  password: process.env.DB_PASSWORD || 'password',
-  ssl: process.env.DB_SSL === 'true',
+  host: urlConfig.host || process.env.DB_HOST || 'localhost',
+  port: urlConfig.port || parseInt(process.env.DB_PORT || '5432'),
+  database: urlConfig.database || process.env.DB_NAME || 'haseb',
+  username: urlConfig.username || process.env.DB_USER || 'postgres',
+  password: urlConfig.password ?? (process.env.DB_PASSWORD || 'password'),
+  ssl: urlConfig.ssl ?? (process.env.DB_SSL === 'true'),
   maxConnections: parseInt(process.env.DB_MAX_CONNECTIONS || '20'),
   idleTimeoutMs: parseInt(process.env.DB_IDLE_TIMEOUT || '30000'),
   file: process.env.DB_FILE || './test-db/haseb.db', // SQLite file path
